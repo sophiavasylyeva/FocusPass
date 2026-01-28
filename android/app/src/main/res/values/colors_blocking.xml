@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Blocking Overlay Colors -->
+    <color name="blocking_background">#F5F5F5</color>
+    <color name="blocking_title">#212121</color>
+    <color name="blocking_text">#424242</color>
+    <color name="blocking_secondary">#757575</color>
+    <color name="blocking_warning">#FF5722</color>
+    <color name="blocking_success">#4CAF50</color>
+    <color name="blocking_info">#2196F3</color>
+    <color name="white">#FFFFFF</color>
+    
+    <!-- Button Colors -->
+    <color name="button_primary">#4CAF50</color>
+    <color name="button_primary_dark">#388E3C</color>
+    <color name="button_secondary">#E0E0E0</color>
+    <color name="button_secondary_dark">#BDBDBD</color>
+    
+    <!-- Background Colors -->
+    <color name="background_success">#E8F5E8</color>
+    <color name="background_info">#E3F2FD</color>
+    <color name="background_warning">#FFF3E0</color>
+</resources>

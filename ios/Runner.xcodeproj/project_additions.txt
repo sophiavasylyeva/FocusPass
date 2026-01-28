@@ -1,0 +1,47 @@
+# iOS Project Configuration Additions for Screen Time Support
+
+## Frameworks to Add in Xcode:
+
+1. Open Runner.xcworkspace in Xcode
+2. Select the Runner project in the navigator
+3. Select the Runner target
+4. Go to "Build Phases" → "Link Binary With Libraries"
+5. Add the following frameworks:
+   - FamilyControls.framework
+   - DeviceActivity.framework  
+   - ManagedSettings.framework
+
+## App Groups Configuration:
+
+1. Go to "Signing & Capabilities"
+2. Add "App Groups" capability
+3. Create app group: group.com.focuspass.shared
+
+## Minimum Deployment Target:
+
+1. Set iOS Deployment Target to 15.0 or higher
+2. This is required for Screen Time APIs
+
+## Bundle Identifier:
+
+Make sure your bundle identifier matches the one configured in Apple Developer Console for Family Controls access.
+
+## Entitlements:
+
+The following entitlements will be automatically added when you add the App Groups capability:
+- com.apple.security.application-groups
+- com.apple.developer.family-controls
+
+## DeviceActivity Extension (Optional but Recommended):
+
+For advanced monitoring, create a DeviceActivity Extension:
+1. File → New → Target
+2. Choose "Device Activity Report Extension"
+3. Configure with the same app group
+
+## Important Notes:
+
+- Screen Time APIs require special approval from Apple
+- Your app must be submitted for review with a clear explanation of how it uses Screen Time
+- The app must be signed with a provisioning profile that includes Family Controls entitlements
+- Testing requires a physical iOS device (won't work in simulator)

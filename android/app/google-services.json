@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "412207326023",
+    "project_id": "focuspass-b317a",
+    "storage_bucket": "focuspass-b317a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:412207326023:android:7c92d8bc149a1e8b63e262",
+        "android_client_info": {
+          "package_name": "com.example.focuspass"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8bSC6YZyTS0NwRx2nbWz4ct6wPyEve5E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
