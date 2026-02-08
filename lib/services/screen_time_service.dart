@@ -113,7 +113,7 @@
 //     try {
 //       final endTime = DateTime.now();
 //       final startTime = endTime.subtract(const Duration(days: 1));
-//       final stats = await UsageStats.queryUsageStats(startTime, endTime);
+//       final stats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
 //
 //       print('ScreenTimeService: Permission check - found ${stats.length} usage stats');
 //
@@ -448,7 +448,7 @@
 //       final endTime = DateTime.now();
 //       final startTime = DateTime(endTime.year, endTime.month, endTime.day);
 //
-//       final List<UsageInfo> usageStats = await UsageStats.queryUsageStats(startTime, endTime);
+//       final List<UsageInfo> usageStats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
 //
 //       // Check if educational tasks are completed
 //       final hasCompletedTasks = _earnedTimeToday > 0;
@@ -830,7 +830,7 @@
 //       if (await hasUsageStatsPermission()) {
 //         final endTime = DateTime.now();
 //         final startTime = DateTime(endTime.year, endTime.month, endTime.day);
-//         final usageStats = await UsageStats.queryUsageStats(startTime, endTime);
+//         final usageStats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
 //
 //         // Update tracking start times to current system values
 //         _trackingStartTimes.clear();
@@ -1072,7 +1072,7 @@
 //
 //       print('Checking usage from ${startTime.toIso8601String()} to ${endTime.toIso8601String()}');
 //
-//       final List<UsageInfo> usageStats = await UsageStats.queryUsageStats(startTime, endTime);
+//       final List<UsageInfo> usageStats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
 //       print('Found ${usageStats.length} usage stats entries');
 //
 //       // Show all apps with significant usage
@@ -1123,7 +1123,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:usage_stats/usage_stats.dart';
+import 'native_usage_stats_service.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'notification_service.dart';
@@ -1230,7 +1230,7 @@ class ScreenTimeService {
     try {
       final endTime = DateTime.now();
       final startTime = endTime.subtract(const Duration(days: 1));
-      final stats = await UsageStats.queryUsageStats(startTime, endTime);
+      final stats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
 
       print('ScreenTimeService: Permission check - found ${stats.length} usage stats');
 
@@ -1565,7 +1565,7 @@ class ScreenTimeService {
       final endTime = DateTime.now();
       final startTime = DateTime(endTime.year, endTime.month, endTime.day);
 
-      final List<UsageInfo> usageStats = await UsageStats.queryUsageStats(startTime, endTime);
+      final List<UsageStatInfo> usageStats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
 
       // Check if educational tasks are completed
       final hasCompletedTasks = _earnedTimeToday > 0;
@@ -2008,7 +2008,7 @@ class ScreenTimeService {
       if (await hasUsageStatsPermission()) {
         final endTime = DateTime.now();
         final startTime = DateTime(endTime.year, endTime.month, endTime.day);
-        final usageStats = await UsageStats.queryUsageStats(startTime, endTime);
+        final usageStats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
 
         // Update tracking start times to current system values
         _trackingStartTimes.clear();
@@ -2273,7 +2273,7 @@ class ScreenTimeService {
       final startTime = DateTime(endTime.year, endTime.month, endTime.day);
 
       print('\nSystem usage stats:');
-      final List<UsageInfo> usageStats = await UsageStats.queryUsageStats(startTime, endTime);
+      final List<UsageStatInfo> usageStats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
       print('Found ${usageStats.length} usage stats entries');
 
       // Show calculated stats

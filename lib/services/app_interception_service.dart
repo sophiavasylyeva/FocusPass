@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/services.dart';
-import 'package:usage_stats/usage_stats.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screen_time_service.dart';
 import 'educational_task_service.dart';
 import 'notification_service.dart';
 import 'focuspass_workflow_service.dart';
+import 'native_usage_stats_service.dart';
 
 class AppInterceptionService {
   static const String _lastAppCheckKey = 'last_app_check';
@@ -62,7 +62,7 @@ class AppInterceptionService {
       final endTime = DateTime.now();
       final startTime = endTime.subtract(const Duration(seconds: 5));
       
-      final usageStats = await UsageStats.queryUsageStats(startTime, endTime);
+      final usageStats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
       
       // Find the most recently used app
       String? currentApp = await _getMostRecentApp(usageStats);

@@ -17,9 +17,33 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity: FlutterActivity() {
     private val APP_BLOCKER_CHANNEL = "com.focuspass.app_blocker"
     private val APP_LAUNCHER_CHANNEL = "com.focuspass.app_launcher"
+    private val USAGE_STATS_CHANNEL = "com.focuspass.usage_stats"
     
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        
+        // Set up usage stats method channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, USAGE_STATS_CHANNEL).setMethodCallHandler {
+            call, result ->
+            when (call.method) {
+                "queryUsageStats" -> {
+                    val startTime = call.argument<Long>("startTime") ?: 0L
+                    val endTime = call.argument<Long>("endTime") ?: System.currentTimeMillis()
+                    val stats = queryUsageStats(startTime, endTime)
+                    result.success(stats)
+                }
+                "hasUsageStatsPermission" -> {
+                    result.success(hasUsageStatsPermission())
+                }
+                "openUsageStatsSettings" -> {
+                    openUsageStatsSettings()
+                    result.success(null)
+                }
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
         
         // Set up app blocker method channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, APP_BLOCKER_CHANNEL).setMethodCallHandler {
@@ -183,5 +207,43 @@ class MainActivity: FlutterActivity() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         startActivity(intent)
+    }
+    
+    private fun queryUsageStats(startTime: Long, endTime: Long): List<Map<String, Any?>> {
+        val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val usageStatsList = usageStatsManager.queryUsageStats(
+            UsageStatsManager.INTERVAL_DAILY,
+            startTime,
+            endTime
+        )
+        
+        return usageStatsList.map { stat ->
+            mapOf(
+                "packageName" to stat.packageName,
+                "totalTimeInForeground" to stat.totalTimeInForeground,
+                "firstTimeStamp" to stat.firstTimeStamp,
+                "lastTimeStamp" to stat.lastTimeStamp,
+                "lastTimeUsed" to stat.lastTimeUsed
+            )
+        }
+    }
+    
+    private fun hasUsageStatsPermission(): Boolean {
+        val appOps = getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            appOps.unsafeCheckOpNoThrow(
+                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(),
+                packageName
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            appOps.checkOpNoThrow(
+                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(),
+                packageName
+            )
+        }
+        return mode == android.app.AppOpsManager.MODE_ALLOWED
     }
 }
