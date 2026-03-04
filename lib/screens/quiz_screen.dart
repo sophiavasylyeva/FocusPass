@@ -166,7 +166,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
     return Scaffold(
       backgroundColor: kAccentGreen,
       appBar: AppBar(
-        title: Text('Question ${_currentQuestionIndex + 1} of $totalQuestions'),
+        title: Text('Question ${_currentQuestionIndex + 1} of ${_questions.length}'),
         backgroundColor: kDarkGreen,
         foregroundColor: Colors.white,
         leading: IconButton(
@@ -198,7 +198,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(totalQuestions, (index) {
+              children: List.generate(_questions.length, (index) {
                 Color dotColor;
                 if (_answeredQuestions.containsKey(index)) {
                   final wasCorrect = _selectedAnswers[index] == _questions[index].correctAnswerIndex;
@@ -450,7 +450,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
                   padding: EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: Text(
-                  _currentQuestionIndex < totalQuestions - 1 ? 'Next Question' : 'See Results',
+                  _currentQuestionIndex < _questions.length - 1 ? 'Next Question' : 'See Results',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -520,7 +520,8 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildResultsScreen() {
-    final passed = _correctCount >= passingScore;
+    final requiredScore = (_questions.length * 0.8).ceil();
+    final passed = _correctCount >= requiredScore;
     
     return Scaffold(
       backgroundColor: passed ? kAccentGreen : Colors.orange[700],
@@ -552,7 +553,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  'Score: $_correctCount / $totalQuestions',
+                  'Score: $_correctCount / ${_questions.length}',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -564,7 +565,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
               Text(
                 passed
                     ? 'You passed! You earned $screenTimeReward minutes of screen time.'
-                    : 'You need at least $passingScore correct answers to pass.\nLet\'s try again with new questions!',
+                    : 'You need at least $requiredScore correct answers to pass.\nLet\'s try again with new questions!',
                 style: TextStyle(
                   fontSize: 18,
                   color: Colors.white,
@@ -574,7 +575,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
               SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(totalQuestions, (index) {
+                children: List.generate(_questions.length, (index) {
                   final wasCorrect = _selectedAnswers[index] == _questions[index].correctAnswerIndex;
                   return Container(
                     margin: EdgeInsets.symmetric(horizontal: 6),
@@ -669,7 +670,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
   }
 
   void _handleNext() {
-    if (_currentQuestionIndex < totalQuestions - 1) {
+    if (_currentQuestionIndex < _questions.length - 1) {
       setState(() {
         _currentQuestionIndex++;
       });

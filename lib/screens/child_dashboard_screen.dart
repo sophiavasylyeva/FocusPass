@@ -672,16 +672,17 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
 
   Future<void> _updateSubjectsInFirestore() async {
     try {
-      final query = await FirebaseFirestore.instance
-          .collectionGroup('children')
-          .where('name', isEqualTo: widget.childName)
-          .get();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-      if (query.docs.isNotEmpty) {
-        await query.docs.first.reference.update({
-          'subjectsOfInterest': _subjectsOfInterest,
-        });
-      }
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('children')
+          .doc(widget.childName)
+          .update({
+        'subjectsOfInterest': _subjectsOfInterest,
+      });
     } catch (e) {
       print('Error updating subjects: $e');
     }
