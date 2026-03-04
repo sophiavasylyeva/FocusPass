@@ -165,6 +165,108 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
     );
   }
 
+  void _showEditChildDialog(int index) {
+    final child = _children[index];
+    final editNameController = TextEditingController(text: child['name']);
+    final editPasswordController = TextEditingController(text: child['password']);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Child'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: editNameController,
+              decoration: const InputDecoration(
+                labelText: "Child's Name",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              enabled: false,
+              decoration: InputDecoration(
+                labelText: "Child Username",
+                border: const OutlineInputBorder(),
+                hintText: child['username'],
+                filled: true,
+                fillColor: Colors.grey[200],
+              ),
+              controller: TextEditingController(text: child['username']),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: editPasswordController,
+              decoration: const InputDecoration(
+                labelText: "Password",
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = editNameController.text.trim();
+              final newPassword = editPasswordController.text.trim();
+
+              if (newName.isEmpty || newPassword.length < 6) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Name cannot be empty and password must be at least 6 characters'),
+                  ),
+                );
+                return;
+              }
+
+              try {
+                final parentUid = FirebaseAuth.instance.currentUser!.uid;
+                final username = child['username']!;
+
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(parentUid)
+                    .collection('children')
+                    .doc(username)
+                    .update({
+                  'name': newName,
+                  'password': newPassword,
+                });
+
+                setState(() {
+                  _children[index] = {
+                    'name': newName,
+                    'username': username,
+                    'password': newPassword,
+                  };
+                });
+
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Child profile updated')),
+                );
+              } catch (e) {
+                print('Failed to update child: $e');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Error updating child profile')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: kAccentBlue),
+            child: const Text('Save', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _deleteChild(int index) async {
     final parentUid = FirebaseAuth.instance.currentUser!.uid;
     final username = _children[index]['username'];
@@ -241,9 +343,18 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                     child: ListTile(
                       title: Text(child['name'] ?? ''),
                       subtitle: Text('Username: ${child['username']}'),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _deleteChild(index),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: kAccentBlue),
+                            onPressed: () => _showEditChildDialog(index),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteChild(index),
+                          ),
+                        ],
                       ),
                     ),
                   );

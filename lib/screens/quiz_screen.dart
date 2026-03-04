@@ -572,21 +572,6 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
                 ),
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(_questions.length, (index) {
-                  final wasCorrect = _selectedAnswers[index] == _questions[index].correctAnswerIndex;
-                  return Container(
-                    margin: EdgeInsets.symmetric(horizontal: 6),
-                    child: Icon(
-                      wasCorrect ? Icons.check_circle : Icons.cancel,
-                      color: wasCorrect ? Colors.green[300] : Colors.red[300],
-                      size: 32,
-                    ),
-                  );
-                }),
-              ),
               SizedBox(height: 48),
               if (passed)
                 ElevatedButton(
@@ -632,7 +617,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Exit Quiz?'),
-        content: Text('Are you sure you want to exit? Your progress will be lost.'),
+        content: Text("Are you sure? You won't get 15 minutes of screen time!"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),

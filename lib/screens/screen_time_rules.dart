@@ -229,7 +229,6 @@ class _ScreenTimeRulesScreenState extends State<ScreenTimeRulesScreen> {
                 _buildSlider('Daily Time Limit for All Apps (hours)', _rules[child]!['limit'],
                         (val) => setState(() => _rules[child]!['limit'] = val),
                     customValues: [0.5, 1, 1.5, 2, 2.5, 3]),
-                _buildSelectedApps(child),
               ],
             ),
           ),
