@@ -300,6 +300,10 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
             _buildScreenTimeWidget(),
             const SizedBox(height: 24),
             
+            // 📝 Manage Subjects Section
+            _buildManageSubjectsWidget(),
+            const SizedBox(height: 24),
+
             // 📚 Educational Tasks Section
             _buildEducationalTasksWidget(),
           ],
@@ -562,6 +566,127 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
     );
   }
   
+  final List<String> _allSubjects = [
+    'Math', 'Science', 'English', 'History', 'Art', 'Coding', 'Geography',
+  ];
+
+  Widget _buildManageSubjectsWidget() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'My Subjects:',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
+            ),
+            TextButton.icon(
+              onPressed: _showAddSubjectDialog,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text('Add Subject', style: TextStyle(color: Colors.white)),
+              style: TextButton.styleFrom(
+                backgroundColor: kDarkGreen,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _subjectsOfInterest.map((subject) {
+            return Chip(
+              label: Text(subject, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+              backgroundColor: kDarkGreen,
+              deleteIcon: const Icon(Icons.close, size: 18, color: Colors.white70),
+              onDeleted: () => _removeSubject(subject),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              side: BorderSide.none,
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  void _showAddSubjectDialog() {
+    final availableSubjects = _allSubjects
+        .where((s) => !_subjectsOfInterest.contains(s))
+        .toList();
+
+    if (availableSubjects.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You have already added all available subjects.')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Add a Subject'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: availableSubjects.map((subject) {
+              return ListTile(
+                title: Text(subject),
+                leading: const Icon(Icons.add_circle_outline),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _addSubject(subject);
+                },
+              );
+            }).toList(),
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        );
+      },
+    );
+  }
+
+  Future<void> _addSubject(String subject) async {
+    setState(() {
+      _subjectsOfInterest.add(subject);
+    });
+    await _updateSubjectsInFirestore();
+    _loadEducationalTasks();
+  }
+
+  Future<void> _removeSubject(String subject) async {
+    if (_subjectsOfInterest.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must have at least one subject selected.')),
+      );
+      return;
+    }
+    setState(() {
+      _subjectsOfInterest.remove(subject);
+    });
+    await _updateSubjectsInFirestore();
+    _loadEducationalTasks();
+  }
+
+  Future<void> _updateSubjectsInFirestore() async {
+    try {
+      final query = await FirebaseFirestore.instance
+          .collectionGroup('children')
+          .where('name', isEqualTo: widget.childName)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        await query.docs.first.reference.update({
+          'subjectsOfInterest': _subjectsOfInterest,
+        });
+      }
+    } catch (e) {
+      print('Error updating subjects: $e');
+    }
+  }
+
   void _startTask(EducationalTask task) {
     Navigator.push(
       context,

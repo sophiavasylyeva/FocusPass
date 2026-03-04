@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/constants.dart';
 import '../services/weekly_report_service.dart';
+import 'parent_dashboard.dart';
 
 class WeeklyReportsScreen extends StatefulWidget {
   const WeeklyReportsScreen({super.key});
@@ -21,6 +22,19 @@ class _WeeklyReportsScreenState extends State<WeeklyReportsScreen> {
   void initState() {
     super.initState();
     _loadChildren();
+  }
+
+  Future<void> _navigateToParentDashboard() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final parentName = doc.data()?['name'] ?? 'Parent';
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => ParentDashboardScreen(parentName: parentName)),
+        (route) => false,
+      );
+    }
   }
 
   Future<void> _loadChildren() async {
@@ -79,6 +93,13 @@ class _WeeklyReportsScreenState extends State<WeeklyReportsScreen> {
         ),
         backgroundColor: kDarkGreen,
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.home),
+            tooltip: 'Back to Dashboard',
+            onPressed: () => _navigateToParentDashboard(),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(

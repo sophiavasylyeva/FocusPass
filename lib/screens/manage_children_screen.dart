@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/constants.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'parent_dashboard.dart';
 
 class ManageChildrenScreen extends StatefulWidget {
   const ManageChildrenScreen({super.key});
@@ -20,6 +21,19 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
   void initState() {
     super.initState();
     _loadChildren();
+  }
+
+  Future<void> _navigateToParentDashboard() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final parentName = doc.data()?['name'] ?? 'Parent';
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => ParentDashboardScreen(parentName: parentName)),
+        (route) => false,
+      );
+    }
   }
 
   Future<void> _loadChildren() async {
@@ -72,7 +86,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
             TextField(
               controller: _childUsernameController,
               decoration: const InputDecoration(
-                labelText: "Username",
+                labelText: "Child Username",
                 border: OutlineInputBorder(),
               ),
             ),
@@ -189,6 +203,13 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
         ),
         backgroundColor: kDarkGreen,
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.home),
+            tooltip: 'Back to Dashboard',
+            onPressed: () => _navigateToParentDashboard(),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

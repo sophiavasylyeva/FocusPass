@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/constants.dart';
+import 'parent_dashboard.dart';
 
 class PinSetupScreen extends StatefulWidget {
   const PinSetupScreen({super.key});
@@ -20,6 +21,19 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
   void initState() {
     super.initState();
     _loadCurrentPin();
+  }
+
+  Future<void> _navigateToParentDashboard() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final parentName = doc.data()?['name'] ?? 'Parent';
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => ParentDashboardScreen(parentName: parentName)),
+        (route) => false,
+      );
+    }
   }
 
   Future<void> _loadCurrentPin() async {
@@ -101,6 +115,13 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
         ),
         backgroundColor: kDarkGreen,
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.home),
+            tooltip: 'Back to Dashboard',
+            onPressed: () => _navigateToParentDashboard(),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),

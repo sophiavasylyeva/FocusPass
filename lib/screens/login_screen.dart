@@ -162,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 14, color: Colors.white70)),
                 const SizedBox(height: 24),
-                const Text('Email/Username',
+                const Text('Email / Child Username',
                     style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                 const SizedBox(height: 8),
                 TextFormField(
@@ -171,7 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: const InputDecoration(
                     filled: true,
                     fillColor: Colors.white,
-                    hintText: 'Enter your email or username',
+                    hintText: 'Enter your email or child username',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(8)),
                       borderSide: BorderSide.none,

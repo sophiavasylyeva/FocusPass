@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'parent_dashboard.dart';
 
 class ScreenTimeRulesScreen extends StatefulWidget {
   const ScreenTimeRulesScreen({super.key});
@@ -12,6 +13,7 @@ class ScreenTimeRulesScreen extends StatefulWidget {
 
 class _ScreenTimeRulesScreenState extends State<ScreenTimeRulesScreen> {
   final Map<String, Map<String, dynamic>> _rules = {};
+  final Map<String, List<String>> _childSelectedApps = {};
   bool applySameForAll = false;
   double unifiedLimit = 1.0;
   bool isLoading = true;
@@ -20,6 +22,19 @@ class _ScreenTimeRulesScreenState extends State<ScreenTimeRulesScreen> {
   void initState() {
     super.initState();
     _initializeScreenTimeRules();
+  }
+
+  Future<void> _navigateToParentDashboard() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final parentName = doc.data()?['name'] ?? 'Parent';
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => ParentDashboardScreen(parentName: parentName)),
+        (route) => false,
+      );
+    }
   }
 
   Future<void> _initializeScreenTimeRules() async {
@@ -39,6 +54,18 @@ class _ScreenTimeRulesScreenState extends State<ScreenTimeRulesScreen> {
     final childrenSnapshot = await childrenRef.get();
 
     final loadedChildren = childrenSnapshot.docs.map((doc) => doc.data()['name'] as String).toList();
+
+    Map<String, List<String>> tempSelectedApps = {};
+    for (var doc in childrenSnapshot.docs) {
+      final data = doc.data();
+      final name = data['name'] as String;
+      final apps = data['selectedApps'];
+      if (apps != null && apps is List) {
+        tempSelectedApps[name] = List<String>.from(apps);
+      } else {
+        tempSelectedApps[name] = [];
+      }
+    }
 
     Map<String, Map<String, dynamic>> tempRules = {
       for (var name in loadedChildren) name: {'limit': 1.0},
@@ -65,6 +92,8 @@ class _ScreenTimeRulesScreenState extends State<ScreenTimeRulesScreen> {
     setState(() {
       _rules.clear();
       _rules.addAll(tempRules);
+      _childSelectedApps.clear();
+      _childSelectedApps.addAll(tempSelectedApps);
       isLoading = false;
     });
   }
@@ -79,6 +108,13 @@ class _ScreenTimeRulesScreenState extends State<ScreenTimeRulesScreen> {
         title: const Text('Set Screen Time Rules', style: TextStyle(color: Colors.white)),
         backgroundColor: kDarkGreen,
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.home),
+            tooltip: 'Back to Dashboard',
+            onPressed: () => _navigateToParentDashboard(),
+          ),
+        ],
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -146,7 +182,7 @@ class _ScreenTimeRulesScreenState extends State<ScreenTimeRulesScreen> {
               ],
             ),
           ),
-          _buildSlider('Daily Time Limit (hours)', unifiedLimit, (val) => setState(() => unifiedLimit = val),
+          _buildSlider('Daily Time Limit for All Apps (hours)', unifiedLimit, (val) => setState(() => unifiedLimit = val),
               customValues: [0.5, 1, 1.5, 2, 2.5, 3]),
         ],
       ),
@@ -190,14 +226,52 @@ class _ScreenTimeRulesScreenState extends State<ScreenTimeRulesScreen> {
                     ],
                   ),
                 ),
-                _buildSlider('Daily Time Limit (hours)', _rules[child]!['limit'],
+                _buildSlider('Daily Time Limit for All Apps (hours)', _rules[child]!['limit'],
                         (val) => setState(() => _rules[child]!['limit'] = val),
                     customValues: [0.5, 1, 1.5, 2, 2.5, 3]),
+                _buildSelectedApps(child),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildSelectedApps(String childName) {
+    final apps = _childSelectedApps[childName] ?? [];
+    if (apps.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(
+          'No apps selected for this child',
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontStyle: FontStyle.italic),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Applies to:',
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: apps.map((app) => Chip(
+              label: Text(app, style: const TextStyle(fontSize: 11)),
+              backgroundColor: Colors.green.shade50,
+              side: BorderSide(color: Colors.green.shade200),
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            )).toList(),
+          ),
+        ],
+      ),
     );
   }
 
