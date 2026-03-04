@@ -169,23 +169,12 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
         title: Text('Question ${_currentQuestionIndex + 1} of ${_questions.length}'),
         backgroundColor: kDarkGreen,
         foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: Icon(Icons.close),
-          onPressed: _showExitConfirmation,
-        ),
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.home),
             tooltip: 'Back to Dashboard',
-            onPressed: () {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ChildDashboardScreen(childName: widget.childName),
-                ),
-                (route) => false,
-              );
-            },
+            onPressed: _showExitConfirmation,
           ),
         ],
       ),
@@ -632,7 +621,13 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
       ),
     );
     if (shouldExit == true) {
-      Navigator.pop(context);
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChildDashboardScreen(childName: widget.childName),
+        ),
+        (route) => false,
+      );
     }
   }
 
