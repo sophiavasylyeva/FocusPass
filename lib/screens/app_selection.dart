@@ -26,6 +26,24 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
     'X (Twitter)': false,
   };
 
+  final Map<String, IconData> _appIcons = {
+    'Instagram': Icons.camera_alt,
+    'TikTok': Icons.music_note,
+    'YouTube': Icons.play_circle_fill,
+    'YouTube Shorts': Icons.video_library,
+    'Snapchat': Icons.chat_bubble,
+    'X (Twitter)': Icons.tag,
+  };
+
+  final Map<String, Color> _appColors = {
+    'Instagram': Color(0xFFE1306C),
+    'TikTok': Color(0xFF010101),
+    'YouTube': Color(0xFFFF0000),
+    'YouTube Shorts': Color(0xFFFF0000),
+    'Snapchat': Color(0xFFFFFC00),
+    'X (Twitter)': Color(0xFF000000),
+  };
+
   bool get _hasSelectedApps => _selectedApps.values.any((selected) => selected);
 
   @override
@@ -61,7 +79,25 @@ class _AppSelectionScreenState extends State<AppSelectionScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: CheckboxListTile(
-                      title: Text(appName, style: const TextStyle(color: Colors.black)),
+                      title: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: _appColors[appName],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              _appIcons[appName],
+                              color: appName == 'Snapchat' ? Colors.black : Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(appName, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w500)),
+                        ],
+                      ),
                       value: _selectedApps[appName],
                       onChanged: (bool? value) {
                         setState(() {

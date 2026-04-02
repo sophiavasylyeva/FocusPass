@@ -972,7 +972,7 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Enter the parental PIN to grant ${widget.childName} an additional 30 minutes of screen time.',
+            'Enter the parental PIN to grant ${widget.childName} an additional 15 minutes of screen time.',
             style: TextStyle(fontSize: 16),
           ),
           SizedBox(height: 16),
@@ -1007,7 +1007,7 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'This will add 30 minutes to today\'s screen time allowance.',
+                    'This will add 15 minutes to today\'s screen time allowance.',
                     style: TextStyle(fontSize: 12, color: Colors.orange[800]),
                   ),
                 ),
@@ -1123,9 +1123,9 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
         return false;
       }
 
-      // Grant 30 minutes of additional screen time by updating each app's limits
-      await _addBonusTimeToAllApps(30);
-      print('ParentalOverride: Added 30 minutes bonus time for ${widget.childName}');
+      // Grant 15 minutes of additional screen time by updating each app's limits
+      await _addBonusTimeToAllApps(15);
+      print('ParentalOverride: Added 15 minutes bonus time for ${widget.childName}');
       return true;
     } catch (e) {
       print('ParentalOverride: Error - $e');
@@ -1255,7 +1255,7 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
             ],
           ),
           content: Text(
-            '${widget.childName} has been granted an additional 30 minutes of screen time for today.\n\nThe extra time has been added to all app limits and should now be visible in the Screen Time Management section below. The updated remaining time may take a few moments to appear.',
+            '${widget.childName} has been granted an additional 15 minutes of screen time for today.\n\nThe extra time has been added to all app limits and should now be visible in the Screen Time Management section below. The updated remaining time may take a few moments to appear.',
             style: TextStyle(fontSize: 16),
           ),
           backgroundColor: Colors.white,

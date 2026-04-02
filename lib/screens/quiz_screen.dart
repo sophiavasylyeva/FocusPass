@@ -406,25 +406,31 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
                         SizedBox(height: 8),
                         if (!isCorrect) ...[
                           Text(
+                            '"${question.options[selectedIndex!]}" is not correct.',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red[700],
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
                             'The correct answer is: ${question.options[question.correctAnswerIndex]}',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Colors.green[800],
                             ),
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'You selected: ${question.options[selectedIndex!]}',
-                            style: TextStyle(
-                              color: Colors.red[700],
-                            ),
-                          ),
                           SizedBox(height: 8),
-                        ],
+                          Text(
+                            'Why? ${question.explanation}',
+                            style: TextStyle(color: Colors.blueGrey[700]),
+                          ),
+                        ] else ...[
                         Text(
                           question.explanation,
                           style: TextStyle(color: Colors.blueGrey[700]),
                         ),
+                        ],
                       ],
                     ),
                   );

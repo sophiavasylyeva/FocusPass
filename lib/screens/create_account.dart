@@ -22,8 +22,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   final _childController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _nameController = TextEditingController();
   final List<String> _children = [];
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   void _addChild() {
     final name = _childController.text.trim();
@@ -122,15 +125,22 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _passwordController,
-                          obscureText: true,
+                          obscureText: _obscurePassword,
                           style: const TextStyle(color: Colors.black),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             filled: true,
                             fillColor: Colors.white,
                             hintText: 'Create a password',
-                            hintStyle: TextStyle(color: Colors.grey),
-                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
-                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+                            hintStyle: const TextStyle(color: Colors.grey),
+                            enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+                            focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                color: Colors.grey,
+                              ),
+                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            ),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().length < 6) {
@@ -141,6 +151,39 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         ),
 
                         const SizedBox(height: 16),
+
+                        const Text('Confirm Password',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _confirmPasswordController,
+                          obscureText: _obscureConfirmPassword,
+                          style: const TextStyle(color: Colors.black),
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: Colors.white,
+                            hintText: 'Re-enter your password',
+                            hintStyle: const TextStyle(color: Colors.grey),
+                            enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+                            focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                                color: Colors.grey,
+                              ),
+                              onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please confirm your password';
+                            }
+                            if (value.trim() != _passwordController.text.trim()) {
+                              return 'Passwords do not match';
+                            }
+                            return null;
+                          },
+                        ),
 
                         const SizedBox(height: 24),
                         ElevatedButton(
