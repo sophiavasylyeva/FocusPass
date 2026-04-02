@@ -169,10 +169,12 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
     final child = _children[index];
     final editNameController = TextEditingController(text: child['name']);
     final editPasswordController = TextEditingController(text: child['password']);
+    bool obscurePassword = true;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
         title: const Text('Edit Child'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -199,11 +201,18 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
             const SizedBox(height: 8),
             TextField(
               controller: editPasswordController,
-              decoration: const InputDecoration(
+              obscureText: obscurePassword,
+              decoration: InputDecoration(
                 labelText: "Password",
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () => setDialogState(() => obscurePassword = !obscurePassword),
+                ),
               ),
-              obscureText: true,
             ),
           ],
         ),
@@ -263,6 +272,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
             child: const Text('Save', style: TextStyle(color: Colors.white)),
           ),
         ],
+      ),
       ),
     );
   }
