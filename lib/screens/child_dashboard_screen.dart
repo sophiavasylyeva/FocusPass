@@ -653,6 +653,8 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
       _subjectsOfInterest.add(subject);
     });
     await _updateSubjectsInFirestore();
+    final taskService = EducationalTaskService();
+    await taskService.clearTodaysPendingTasks(widget.childName);
     _loadEducationalTasks();
   }
 
@@ -667,6 +669,8 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
       _subjectsOfInterest.remove(subject);
     });
     await _updateSubjectsInFirestore();
+    final taskService = EducationalTaskService();
+    await taskService.clearTodaysPendingTasks(widget.childName);
     _loadEducationalTasks();
   }
 

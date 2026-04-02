@@ -142,6 +142,33 @@ class EducationalTaskService {
     }
   }
 
+  Future<void> clearTodaysPendingTasks(String childName) async {
+    try {
+      final today = DateTime.now();
+      final querySnapshot = await _firestore
+          .collection('educational_tasks')
+          .where('childName', isEqualTo: childName)
+          .where('isCompleted', isEqualTo: false)
+          .get();
+
+      int deleted = 0;
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final assignedAt = (data['assignedAt'] as dynamic)?.toDate() as DateTime?;
+        if (assignedAt != null &&
+            assignedAt.year == today.year &&
+            assignedAt.month == today.month &&
+            assignedAt.day == today.day) {
+          await doc.reference.delete();
+          deleted++;
+        }
+      }
+      print('🗑️ Cleared $deleted pending tasks for today ($childName)');
+    } catch (e) {
+      print('❌ Error clearing today\'s pending tasks: $e');
+    }
+  }
+
   Future<void> generateDailyTasks(String childName, List<String> subjects, String ageRange) async {
     final existingTasks = await fetchTasks(childName);
     final today = DateTime.now();
@@ -176,18 +203,18 @@ class EducationalTaskService {
       // Cycle through subjects to ensure variety
       final subject = subjects[i % subjects.length];
       print('🔄 generateDailyTasks: Task ${i + 1} - Using subject: $subject (index: ${i % subjects.length} from ${subjects.length} subjects)');
-      final question = _generateSingleQuestionForSubject(subject, ageRange, i);
+      final question = await _getUnusedQuestionForSubject(childName, subject, ageRange);
       
       final task = EducationalTask(
         id: '${childName}_question_${today.millisecondsSinceEpoch}_$i',
         childName: childName,
         subject: subject,
-        questions: [question], // Each task contains exactly 1 question
+        questions: [question],
         assignedAt: today,
-        screenTimeRewardMinutes: 0, // Individual tasks give 0 minutes - only completing 5 gives 15 minutes
+        screenTimeRewardMinutes: 0,
       );
 
-      print('🔄 generateDailyTasks: Creating task ${i + 1}/5 for $subject');
+      print('🔄 generateDailyTasks: Creating task ${i + 1}/5 for $subject (Question: ${question.id})');
       await assignTask(task);
     }
     print('🔄 generateDailyTasks: Task generation completed - 5 individual tasks created');
@@ -195,16 +222,84 @@ class EducationalTaskService {
 
   EducationalQuestion _generateSingleQuestionForSubject(String subject, String ageRange, int questionIndex) {
     final allQuestions = _generateQuestionsForSubject(subject, ageRange);
-    // Add some randomization to avoid predictable patterns
     final adjustedIndex = (questionIndex + DateTime.now().millisecond) % allQuestions.length;
     return allQuestions[adjustedIndex];
   }
 
-  /// Generate a similar question for retry when child gets answer wrong
-  Future<EducationalQuestion> generateSimilarQuestion(String subject, String ageRange, int questionIndex) async {
+  Future<EducationalQuestion> _getUnusedQuestionForSubject(String childName, String subject, String ageRange) async {
     final allQuestions = _generateQuestionsForSubject(subject, ageRange);
+    final usedQuestionIds = await _getUsedQuestionIds(childName, subject);
     
-    // Use a different randomization approach to get a different question
+    var unusedQuestions = allQuestions.where((q) => !usedQuestionIds.contains(q.id)).toList();
+    
+    if (unusedQuestions.isEmpty) {
+      await _resetUsedQuestions(childName, subject);
+      unusedQuestions = allQuestions;
+    }
+    
+    final randomIndex = DateTime.now().millisecond % unusedQuestions.length;
+    final selectedQuestion = unusedQuestions[randomIndex];
+    
+    await _markQuestionAsUsed(childName, subject, selectedQuestion.id);
+    
+    return selectedQuestion;
+  }
+
+  Future<Set<String>> _getUsedQuestionIds(String childName, String subject) async {
+    try {
+      final doc = await _firestore
+          .collection('used_questions')
+          .doc('${childName}_$subject')
+          .get();
+      
+      if (doc.exists) {
+        final data = doc.data();
+        if (data != null && data['usedIds'] != null) {
+          return Set<String>.from(data['usedIds'] as List);
+        }
+      }
+      return {};
+    } catch (e) {
+      print('Error getting used question IDs: $e');
+      return {};
+    }
+  }
+
+  Future<void> _markQuestionAsUsed(String childName, String subject, String questionId) async {
+    try {
+      await _firestore
+          .collection('used_questions')
+          .doc('${childName}_$subject')
+          .set({
+            'childName': childName,
+            'subject': subject,
+            'usedIds': FieldValue.arrayUnion([questionId]),
+            'lastUpdated': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    } catch (e) {
+      print('Error marking question as used: $e');
+    }
+  }
+
+  Future<void> _resetUsedQuestions(String childName, String subject) async {
+    try {
+      await _firestore
+          .collection('used_questions')
+          .doc('${childName}_$subject')
+          .delete();
+      print('Reset used questions for $childName in $subject - all questions available again');
+    } catch (e) {
+      print('Error resetting used questions: $e');
+    }
+  }
+
+  /// Generate a similar question for retry when child gets answer wrong
+  Future<EducationalQuestion> generateSimilarQuestion(String subject, String ageRange, int questionIndex, {String? childName}) async {
+    if (childName != null) {
+      return await _getUnusedQuestionForSubject(childName, subject, ageRange);
+    }
+    
+    final allQuestions = _generateQuestionsForSubject(subject, ageRange);
     final currentTime = DateTime.now().millisecondsSinceEpoch;
     final randomIndex = (questionIndex + currentTime + subject.hashCode) % allQuestions.length;
     
@@ -222,6 +317,12 @@ class EducationalTaskService {
         return _generateScienceQuestions(ageRange);
       case 'history':
         return _generateHistoryQuestions(ageRange);
+      case 'art':
+        return _generateArtQuestions(ageRange);
+      case 'coding':
+        return _generateCodingQuestions(ageRange);
+      case 'geography':
+        return _generateGeographyQuestions(ageRange);
       default:
         return _generateGeneralKnowledgeQuestions(ageRange);
     }
@@ -275,6 +376,51 @@ class EducationalTaskService {
           subject: 'Math',
           difficulty: 'easy',
           explanation: 'f(5) = 2(5) + 3 = 10 + 3 = 13',
+        ),
+        EducationalQuestion(
+          id: 'math_6',
+          question: 'What is the square root of 144?',
+          options: ['10', '11', '12', '14'],
+          correctAnswerIndex: 2,
+          subject: 'Math',
+          difficulty: 'easy',
+          explanation: '√144 = 12 because 12 × 12 = 144',
+        ),
+        EducationalQuestion(
+          id: 'math_7',
+          question: 'Solve for x: 3x - 7 = 14',
+          options: ['5', '6', '7', '8'],
+          correctAnswerIndex: 2,
+          subject: 'Math',
+          difficulty: 'medium',
+          explanation: '3x - 7 = 14, so 3x = 21, therefore x = 7',
+        ),
+        EducationalQuestion(
+          id: 'math_8',
+          question: 'What is 15% of 200?',
+          options: ['25', '30', '35', '40'],
+          correctAnswerIndex: 1,
+          subject: 'Math',
+          difficulty: 'easy',
+          explanation: '15% of 200 = 0.15 × 200 = 30',
+        ),
+        EducationalQuestion(
+          id: 'math_9',
+          question: 'What is the volume of a cube with side length 4?',
+          options: ['16', '32', '64', '48'],
+          correctAnswerIndex: 2,
+          subject: 'Math',
+          difficulty: 'medium',
+          explanation: 'Volume of a cube = side³ = 4³ = 64',
+        ),
+        EducationalQuestion(
+          id: 'math_10',
+          question: 'What is the value of 2³ × 3²?',
+          options: ['72', '64', '81', '54'],
+          correctAnswerIndex: 0,
+          subject: 'Math',
+          difficulty: 'medium',
+          explanation: '2³ × 3² = 8 × 9 = 72',
         ),
       ];
     }
@@ -488,6 +634,51 @@ class EducationalTaskService {
         difficulty: 'easy',
         explanation: 'Gravity is the force that attracts objects toward the center of Earth.',
       ),
+      EducationalQuestion(
+        id: 'science_6',
+        question: 'What is the largest organ in the human body?',
+        options: ['Heart', 'Liver', 'Skin', 'Brain'],
+        correctAnswerIndex: 2,
+        subject: 'Science',
+        difficulty: 'medium',
+        explanation: 'The skin is the largest organ, covering about 20 square feet in adults.',
+      ),
+      EducationalQuestion(
+        id: 'science_7',
+        question: 'What type of animal is a dolphin?',
+        options: ['Fish', 'Reptile', 'Mammal', 'Amphibian'],
+        correctAnswerIndex: 2,
+        subject: 'Science',
+        difficulty: 'easy',
+        explanation: 'Dolphins are mammals - they breathe air, are warm-blooded, and nurse their young.',
+      ),
+      EducationalQuestion(
+        id: 'science_8',
+        question: 'What is the boiling point of water at sea level?',
+        options: ['90°C', '100°C', '110°C', '212°C'],
+        correctAnswerIndex: 1,
+        subject: 'Science',
+        difficulty: 'easy',
+        explanation: 'Water boils at 100°C (212°F) at sea level atmospheric pressure.',
+      ),
+      EducationalQuestion(
+        id: 'science_9',
+        question: 'Which blood cells help fight infection?',
+        options: ['Red blood cells', 'White blood cells', 'Platelets', 'Plasma'],
+        correctAnswerIndex: 1,
+        subject: 'Science',
+        difficulty: 'medium',
+        explanation: 'White blood cells are part of the immune system and help fight infections.',
+      ),
+      EducationalQuestion(
+        id: 'science_10',
+        question: 'What is the speed of light approximately?',
+        options: ['300,000 km/s', '150,000 km/s', '500,000 km/s', '1,000,000 km/s'],
+        correctAnswerIndex: 0,
+        subject: 'Science',
+        difficulty: 'hard',
+        explanation: 'Light travels at approximately 300,000 kilometers per second in a vacuum.',
+      ),
     ];
   }
 
@@ -537,6 +728,51 @@ class EducationalTaskService {
         subject: 'History',
         difficulty: 'easy',
         explanation: 'Christopher Columbus reached the Americas in 1492 while seeking a western route to Asia.',
+      ),
+      EducationalQuestion(
+        id: 'history_6',
+        question: 'What was the name of the ship that carried the Pilgrims to America in 1620?',
+        options: ['Santa Maria', 'Mayflower', 'Endeavour', 'Victoria'],
+        correctAnswerIndex: 1,
+        subject: 'History',
+        difficulty: 'medium',
+        explanation: 'The Mayflower carried 102 Pilgrims from England to Plymouth, Massachusetts in 1620.',
+      ),
+      EducationalQuestion(
+        id: 'history_7',
+        question: 'Who wrote the Declaration of Independence?',
+        options: ['George Washington', 'Benjamin Franklin', 'Thomas Jefferson', 'John Adams'],
+        correctAnswerIndex: 2,
+        subject: 'History',
+        difficulty: 'medium',
+        explanation: 'Thomas Jefferson was the primary author of the Declaration of Independence in 1776.',
+      ),
+      EducationalQuestion(
+        id: 'history_8',
+        question: 'Which empire was ruled by Julius Caesar?',
+        options: ['Greek Empire', 'Roman Empire', 'Persian Empire', 'Ottoman Empire'],
+        correctAnswerIndex: 1,
+        subject: 'History',
+        difficulty: 'easy',
+        explanation: 'Julius Caesar was a Roman military leader who became dictator of the Roman Empire.',
+      ),
+      EducationalQuestion(
+        id: 'history_9',
+        question: 'In which year did the Titanic sink?',
+        options: ['1910', '1912', '1914', '1916'],
+        correctAnswerIndex: 1,
+        subject: 'History',
+        difficulty: 'medium',
+        explanation: 'The Titanic sank on April 15, 1912 after hitting an iceberg during its maiden voyage.',
+      ),
+      EducationalQuestion(
+        id: 'history_10',
+        question: 'Who was the first person to walk on the Moon?',
+        options: ['Buzz Aldrin', 'Neil Armstrong', 'John Glenn', 'Yuri Gagarin'],
+        correctAnswerIndex: 1,
+        subject: 'History',
+        difficulty: 'easy',
+        explanation: 'Neil Armstrong became the first person to walk on the Moon on July 20, 1969.',
       ),
     ];
   }
@@ -591,10 +827,294 @@ class EducationalTaskService {
     ];
   }
 
+  List<EducationalQuestion> _generateArtQuestions(String ageRange) {
+    return [
+      EducationalQuestion(
+        id: 'art_1',
+        question: 'Who painted the Mona Lisa?',
+        options: ['Michelangelo', 'Leonardo da Vinci', 'Vincent van Gogh', 'Pablo Picasso'],
+        correctAnswerIndex: 1,
+        subject: 'Art',
+        difficulty: 'easy',
+        explanation: 'Leonardo da Vinci painted the Mona Lisa between 1503 and 1519.',
+      ),
+      EducationalQuestion(
+        id: 'art_2',
+        question: 'What are the three primary colors in painting?',
+        options: ['Red, Green, Blue', 'Red, Yellow, Blue', 'Orange, Green, Purple', 'Cyan, Magenta, Yellow'],
+        correctAnswerIndex: 1,
+        subject: 'Art',
+        difficulty: 'easy',
+        explanation: 'In traditional color theory for painting, the primary colors are red, yellow, and blue.',
+      ),
+      EducationalQuestion(
+        id: 'art_3',
+        question: 'What art movement was Pablo Picasso a co-founder of?',
+        options: ['Impressionism', 'Cubism', 'Surrealism', 'Pop Art'],
+        correctAnswerIndex: 1,
+        subject: 'Art',
+        difficulty: 'medium',
+        explanation: 'Picasso co-founded Cubism along with Georges Braque in the early 20th century.',
+      ),
+      EducationalQuestion(
+        id: 'art_4',
+        question: 'Which famous painting depicts melting clocks?',
+        options: ['The Starry Night', 'The Scream', 'The Persistence of Memory', 'Guernica'],
+        correctAnswerIndex: 2,
+        subject: 'Art',
+        difficulty: 'medium',
+        explanation: 'The Persistence of Memory by Salvador Dalí (1931) is famous for its melting clocks.',
+      ),
+      EducationalQuestion(
+        id: 'art_5',
+        question: 'What is the technique of creating images using small dots of color?',
+        options: ['Impressionism', 'Pointillism', 'Expressionism', 'Cubism'],
+        correctAnswerIndex: 1,
+        subject: 'Art',
+        difficulty: 'medium',
+        explanation: 'Pointillism uses tiny dots of pure color to create an image when viewed from a distance.',
+      ),
+      EducationalQuestion(
+        id: 'art_6',
+        question: 'Who painted "The Starry Night"?',
+        options: ['Claude Monet', 'Vincent van Gogh', 'Salvador Dalí', 'Edvard Munch'],
+        correctAnswerIndex: 1,
+        subject: 'Art',
+        difficulty: 'easy',
+        explanation: 'Vincent van Gogh painted The Starry Night in 1889 while at an asylum in Saint-Rémy-de-Provence.',
+      ),
+      EducationalQuestion(
+        id: 'art_7',
+        question: 'What is a sculpture made from clay before it is fired called?',
+        options: ['Ceramic', 'Greenware', 'Bisque', 'Stoneware'],
+        correctAnswerIndex: 1,
+        subject: 'Art',
+        difficulty: 'medium',
+        explanation: 'Greenware is unfired clay that has dried but not yet been kiln-fired.',
+      ),
+      EducationalQuestion(
+        id: 'art_8',
+        question: 'Which color is created by mixing red and blue?',
+        options: ['Orange', 'Green', 'Purple', 'Brown'],
+        correctAnswerIndex: 2,
+        subject: 'Art',
+        difficulty: 'easy',
+        explanation: 'Mixing red and blue creates purple (or violet).',
+      ),
+      EducationalQuestion(
+        id: 'art_9',
+        question: 'What famous building was designed by architect Frank Lloyd Wright?',
+        options: ['Empire State Building', 'Fallingwater', 'Sydney Opera House', 'Eiffel Tower'],
+        correctAnswerIndex: 1,
+        subject: 'Art',
+        difficulty: 'medium',
+        explanation: 'Fallingwater in Pennsylvania was designed by Frank Lloyd Wright in 1935.',
+      ),
+      EducationalQuestion(
+        id: 'art_10',
+        question: 'What is the art technique of scratching through a layer of wet paint?',
+        options: ['Glazing', 'Impasto', 'Sgraffito', 'Stippling'],
+        correctAnswerIndex: 2,
+        subject: 'Art',
+        difficulty: 'hard',
+        explanation: 'Sgraffito involves scratching through wet paint or plaster to reveal a layer beneath.',
+      ),
+    ];
+  }
+
+  List<EducationalQuestion> _generateCodingQuestions(String ageRange) {
+    return [
+      EducationalQuestion(
+        id: 'coding_1',
+        question: 'What does HTML stand for?',
+        options: ['Hyper Text Markup Language', 'High Tech Modern Language', 'Home Tool Markup Language', 'Hyperlinks Text Mark Language'],
+        correctAnswerIndex: 0,
+        subject: 'Coding',
+        difficulty: 'easy',
+        explanation: 'HTML stands for Hyper Text Markup Language, used to structure web content.',
+      ),
+      EducationalQuestion(
+        id: 'coding_2',
+        question: 'Which symbol is used to start a comment in Python?',
+        options: ['//', '/*', '#', '--'],
+        correctAnswerIndex: 2,
+        subject: 'Coding',
+        difficulty: 'easy',
+        explanation: 'In Python, the hash symbol (#) is used to start a single-line comment.',
+      ),
+      EducationalQuestion(
+        id: 'coding_3',
+        question: 'What is the output of: print(5 + 3 * 2)?',
+        options: ['16', '11', '13', '10'],
+        correctAnswerIndex: 1,
+        subject: 'Coding',
+        difficulty: 'easy',
+        explanation: 'Following order of operations: 3 * 2 = 6, then 5 + 6 = 11.',
+      ),
+      EducationalQuestion(
+        id: 'coding_4',
+        question: 'What data type stores true or false values?',
+        options: ['String', 'Integer', 'Boolean', 'Float'],
+        correctAnswerIndex: 2,
+        subject: 'Coding',
+        difficulty: 'easy',
+        explanation: 'Boolean data type stores only two values: true or false.',
+      ),
+      EducationalQuestion(
+        id: 'coding_5',
+        question: 'What does CSS stand for?',
+        options: ['Computer Style Sheets', 'Cascading Style Sheets', 'Creative Style System', 'Colorful Style Sheets'],
+        correctAnswerIndex: 1,
+        subject: 'Coding',
+        difficulty: 'easy',
+        explanation: 'CSS stands for Cascading Style Sheets, used to style web pages.',
+      ),
+      EducationalQuestion(
+        id: 'coding_6',
+        question: 'What is a loop used for in programming?',
+        options: ['To store data', 'To repeat code multiple times', 'To create variables', 'To print text'],
+        correctAnswerIndex: 1,
+        subject: 'Coding',
+        difficulty: 'easy',
+        explanation: 'A loop allows you to repeat a block of code multiple times.',
+      ),
+      EducationalQuestion(
+        id: 'coding_7',
+        question: 'What is the result of 10 % 3 (modulo operation)?',
+        options: ['3', '1', '0', '10'],
+        correctAnswerIndex: 1,
+        subject: 'Coding',
+        difficulty: 'medium',
+        explanation: '10 % 3 gives the remainder when 10 is divided by 3, which is 1.',
+      ),
+      EducationalQuestion(
+        id: 'coding_8',
+        question: 'Which of these is NOT a programming language?',
+        options: ['Python', 'Java', 'HTML', 'JavaScript'],
+        correctAnswerIndex: 2,
+        subject: 'Coding',
+        difficulty: 'medium',
+        explanation: 'HTML is a markup language, not a programming language. It structures content but does not have programming logic.',
+      ),
+      EducationalQuestion(
+        id: 'coding_9',
+        question: 'What is an array?',
+        options: ['A single variable', 'A collection of values stored together', 'A type of loop', 'A mathematical operator'],
+        correctAnswerIndex: 1,
+        subject: 'Coding',
+        difficulty: 'easy',
+        explanation: 'An array is a data structure that stores multiple values in a single variable.',
+      ),
+      EducationalQuestion(
+        id: 'coding_10',
+        question: 'What does the == operator check?',
+        options: ['Assignment', 'Equality', 'Greater than', 'Less than'],
+        correctAnswerIndex: 1,
+        subject: 'Coding',
+        difficulty: 'easy',
+        explanation: 'The == operator checks if two values are equal.',
+      ),
+    ];
+  }
+
+  List<EducationalQuestion> _generateGeographyQuestions(String ageRange) {
+    return [
+      EducationalQuestion(
+        id: 'geography_1',
+        question: 'What is the largest country in the world by area?',
+        options: ['China', 'United States', 'Canada', 'Russia'],
+        correctAnswerIndex: 3,
+        subject: 'Geography',
+        difficulty: 'easy',
+        explanation: 'Russia is the largest country in the world, spanning over 17 million square kilometers.',
+      ),
+      EducationalQuestion(
+        id: 'geography_2',
+        question: 'Which ocean is the largest?',
+        options: ['Atlantic Ocean', 'Indian Ocean', 'Pacific Ocean', 'Arctic Ocean'],
+        correctAnswerIndex: 2,
+        subject: 'Geography',
+        difficulty: 'easy',
+        explanation: 'The Pacific Ocean is the largest and deepest ocean on Earth.',
+      ),
+      EducationalQuestion(
+        id: 'geography_3',
+        question: 'What is the capital of Australia?',
+        options: ['Sydney', 'Melbourne', 'Canberra', 'Perth'],
+        correctAnswerIndex: 2,
+        subject: 'Geography',
+        difficulty: 'medium',
+        explanation: 'Canberra is the capital of Australia, not Sydney as many people think.',
+      ),
+      EducationalQuestion(
+        id: 'geography_4',
+        question: 'What is the longest mountain range in the world?',
+        options: ['Himalayas', 'Rocky Mountains', 'Andes', 'Alps'],
+        correctAnswerIndex: 2,
+        subject: 'Geography',
+        difficulty: 'medium',
+        explanation: 'The Andes mountain range in South America is the longest, stretching about 7,000 km.',
+      ),
+      EducationalQuestion(
+        id: 'geography_5',
+        question: 'Which desert is the largest hot desert in the world?',
+        options: ['Gobi Desert', 'Sahara Desert', 'Arabian Desert', 'Kalahari Desert'],
+        correctAnswerIndex: 1,
+        subject: 'Geography',
+        difficulty: 'easy',
+        explanation: 'The Sahara Desert in Africa is the largest hot desert in the world.',
+      ),
+      EducationalQuestion(
+        id: 'geography_6',
+        question: 'What country has the most people?',
+        options: ['United States', 'India', 'China', 'Indonesia'],
+        correctAnswerIndex: 1,
+        subject: 'Geography',
+        difficulty: 'medium',
+        explanation: 'As of recent data, India has surpassed China as the most populous country.',
+      ),
+      EducationalQuestion(
+        id: 'geography_7',
+        question: 'What river flows through Egypt?',
+        options: ['Amazon', 'Mississippi', 'Nile', 'Ganges'],
+        correctAnswerIndex: 2,
+        subject: 'Geography',
+        difficulty: 'easy',
+        explanation: 'The Nile River flows through Egypt and is crucial to the country\'s history and agriculture.',
+      ),
+      EducationalQuestion(
+        id: 'geography_8',
+        question: 'Which continent has the most countries?',
+        options: ['Asia', 'Europe', 'Africa', 'South America'],
+        correctAnswerIndex: 2,
+        subject: 'Geography',
+        difficulty: 'medium',
+        explanation: 'Africa has 54 countries, more than any other continent.',
+      ),
+      EducationalQuestion(
+        id: 'geography_9',
+        question: 'What is the smallest country in the world?',
+        options: ['Monaco', 'Vatican City', 'San Marino', 'Liechtenstein'],
+        correctAnswerIndex: 1,
+        subject: 'Geography',
+        difficulty: 'medium',
+        explanation: 'Vatican City is the smallest country in the world at about 0.44 square kilometers.',
+      ),
+      EducationalQuestion(
+        id: 'geography_10',
+        question: 'What body of water separates Africa and Europe?',
+        options: ['Mediterranean Sea', 'Red Sea', 'Black Sea', 'Adriatic Sea'],
+        correctAnswerIndex: 0,
+        subject: 'Geography',
+        difficulty: 'easy',
+        explanation: 'The Mediterranean Sea separates Africa from Europe.',
+      ),
+    ];
+  }
+
   /// Generate the next set of 5 tasks after completing a set
   Future<void> _generateNextTaskSet(String childName) async {
     try {
-      // Get child's preferences
       final childQuery = await FirebaseFirestore.instance
           .collectionGroup('children')
           .where('name', isEqualTo: childName)
@@ -606,11 +1126,10 @@ class EducationalTaskService {
       final subjects = List<String>.from(childData['subjectsOfInterest'] ?? ['Math', 'English', 'Science']);
       final ageRange = childData['ageRange'] ?? '14-16';
       
-      // Generate 5 new tasks immediately
       final today = DateTime.now();
       for (int i = 0; i < 5; i++) {
         final subject = subjects[i % subjects.length];
-        final question = _generateSingleQuestionForSubject(subject, ageRange, i);
+        final question = await _getUnusedQuestionForSubject(childName, subject, ageRange);
         
         final task = EducationalTask(
           id: '${childName}_next_${today.millisecondsSinceEpoch}_$i',
@@ -618,13 +1137,13 @@ class EducationalTaskService {
           subject: subject,
           questions: [question],
           assignedAt: today,
-          screenTimeRewardMinutes: 0, // Individual tasks give 0 minutes - only completing 5 gives 15 minutes
+          screenTimeRewardMinutes: 0,
         );
 
         await assignTask(task);
       }
       
-      print('EducationalTaskService: Generated 5 new tasks for $childName to earn next 15-minute session');
+      print('EducationalTaskService: Generated 5 new tasks for $childName (with unused questions)');
       
     } catch (e) {
       print('EducationalTaskService: Error generating next task set: $e');
