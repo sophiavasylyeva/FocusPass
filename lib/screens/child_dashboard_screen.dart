@@ -31,6 +31,36 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
   List<EducationalTask> _pendingTasks = [];
   bool _tasksLoading = false;
 
+  static const Map<String, IconData> _appIcons = {
+    'Instagram': Icons.camera_alt,
+    'TikTok': Icons.music_note,
+    'YouTube': Icons.play_circle_fill,
+    'YouTube Shorts': Icons.video_library,
+    'Snapchat': Icons.chat_bubble,
+    'X (Twitter)': Icons.tag,
+  };
+
+  static const Map<String, Color> _appColors = {
+    'Instagram': Color(0xFFE1306C),
+    'TikTok': Color(0xFF333333),
+    'YouTube': Color(0xFFFF0000),
+    'YouTube Shorts': Color(0xFFFF0000),
+    'Snapchat': Color(0xFFFFFC00),
+    'X (Twitter)': Color(0xFF000000),
+  };
+
+  Widget _buildAppIcon(String appName, {bool blocked = false}) {
+    if (blocked) return const Icon(Icons.block, color: Colors.red);
+    final icon = _appIcons[appName] ?? Icons.phone_android;
+    final color = _appColors[appName] ?? kAccentGreen;
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
+      child: Icon(icon, color: appName == 'Snapchat' ? Colors.black : Colors.white, size: 20),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -384,7 +414,7 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
             ),
             child: Row(
               children: [
-                Icon(Icons.phone_android, color: kAccentGreen),
+                _buildAppIcon(app),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -426,10 +456,7 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
             children: [
               Row(
                 children: [
-                  Icon(
-                    isBlocked ? Icons.block : Icons.phone_android,
-                    color: isBlocked ? Colors.red : kAccentGreen,
-                  ),
+                  _buildAppIcon(app, blocked: isBlocked),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
