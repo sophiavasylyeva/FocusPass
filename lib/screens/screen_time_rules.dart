@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/constants.dart';
+import '../widgets/hour_cap_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'parent_dashboard.dart';
@@ -13,10 +14,12 @@ class ScreenTimeRulesScreen extends StatefulWidget {
 
 class _ScreenTimeRulesScreenState extends State<ScreenTimeRulesScreen> {
   final Map<String, Map<String, dynamic>> _rules = {};
-  final Map<String, List<String>> _childSelectedApps = {};
   bool applySameForAll = false;
-  double unifiedLimit = 1.0;
+  double unifiedLimit = 2.0;
   bool isLoading = true;
+  bool _isSaving = false;
+
+  static const List<double> _hourOptions = [1, 1.5, 2, 2.5, 3, 4];
 
   @override
   void initState() {
@@ -55,20 +58,8 @@ class _ScreenTimeRulesScreenState extends State<ScreenTimeRulesScreen> {
 
     final loadedChildren = childrenSnapshot.docs.map((doc) => doc.data()['name'] as String).toList();
 
-    Map<String, List<String>> tempSelectedApps = {};
-    for (var doc in childrenSnapshot.docs) {
-      final data = doc.data();
-      final name = data['name'] as String;
-      final apps = data['selectedApps'];
-      if (apps != null && apps is List) {
-        tempSelectedApps[name] = List<String>.from(apps);
-      } else {
-        tempSelectedApps[name] = [];
-      }
-    }
-
     Map<String, Map<String, dynamic>> tempRules = {
-      for (var name in loadedChildren) name: {'limit': 1.0},
+      for (var name in loadedChildren) name: {'limit': 2.0},
     };
 
     if (settingsDoc.exists) {
@@ -92,10 +83,13 @@ class _ScreenTimeRulesScreenState extends State<ScreenTimeRulesScreen> {
     setState(() {
       _rules.clear();
       _rules.addAll(tempRules);
-      _childSelectedApps.clear();
-      _childSelectedApps.addAll(tempSelectedApps);
       isLoading = false;
     });
+  }
+
+  double _closestOption(double value) {
+    if (_hourOptions.contains(value)) return value;
+    return _hourOptions.reduce((a, b) => (a - value).abs() < (b - value).abs() ? a : b);
   }
 
   @override
@@ -118,190 +112,80 @@ class _ScreenTimeRulesScreenState extends State<ScreenTimeRulesScreen> {
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            SwitchListTile(
-              title: const Text('Apply same rules to all children', style: TextStyle(color: Colors.white)),
-              value: applySameForAll,
-              activeColor: kAccentBlue,
-              inactiveThumbColor: Colors.black,
-              inactiveTrackColor: Colors.white54,
-              onChanged: (value) => setState(() => applySameForAll = value),
-            ),
-            const SizedBox(height: 12),
-            if (applySameForAll)
-              _buildUnifiedRules()
-            else
-              Expanded(child: _buildIndividualRules(children)),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _saveRulesToFirestore,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kAccentBlue,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Save', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUnifiedRules() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Row(
+          : ListView(
+              padding: const EdgeInsets.all(20),
               children: [
-                Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Children must complete 5 questions to earn 15 minutes of screen time',
-                    style: TextStyle(
-                      color: Colors.blue.shade700,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                const Text(
+                  'Set a daily screen time cap',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
-              ],
-            ),
-          ),
-          _buildSlider('Daily Time Limit for All Apps (hours)', unifiedLimit, (val) => setState(() => unifiedLimit = val),
-              customValues: [0.5, 1, 1.5, 2, 2.5, 3]),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIndividualRules(List<String> children) {
-    return ListView.builder(
-      itemCount: children.length,
-      itemBuilder: (context, index) {
-        final child = children[index];
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(child, style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                const Text(
+                  'Your kids can only earn screen time by completing real activities — never more than the daily cap. You can change this anytime.',
+                  style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
+                ),
+                const SizedBox(height: 20),
                 Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.shade200),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.blue.shade700, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '5 questions = 15 minutes screen time',
-                          style: TextStyle(
-                            color: Colors.blue.shade700,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
+                  child: SwitchListTile(
+                    title: const Text('Apply the same cap to all children', style: TextStyle(fontSize: 14)),
+                    value: applySameForAll,
+                    activeColor: kDarkGreen,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (value) => setState(() => applySameForAll = value),
                   ),
                 ),
-                _buildSlider('Daily Time Limit for All Apps (hours)', _rules[child]!['limit'],
-                        (val) => setState(() => _rules[child]!['limit'] = val),
-                    customValues: [0.5, 1, 1.5, 2, 2.5, 3]),
+                const SizedBox(height: 16),
+                if (applySameForAll)
+                  HourCapCard(
+                    hours: _closestOption(unifiedLimit),
+                    options: _hourOptions,
+                    onChanged: (h) => setState(() => unifiedLimit = h),
+                  )
+                else
+                  ...children.map((child) => Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: HourCapCard(
+                          label: "${child.toUpperCase()}'S DAILY LIMIT",
+                          hours: _closestOption(_rules[child]!['limit']),
+                          options: _hourOptions,
+                          onChanged: (h) => setState(() => _rules[child]!['limit'] = h),
+                        ),
+                      )),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: _isSaving ? null : _saveRulesToFirestore,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kDarkGreen,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text('Save and start', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'No screen time without earning it. No exceptions.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white60, fontSize: 12),
+                ),
               ],
             ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSelectedApps(String childName) {
-    final apps = _childSelectedApps[childName] ?? [];
-    if (apps.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Text(
-          'No apps selected for this child',
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontStyle: FontStyle.italic),
-        ),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Applies to:',
-            style: TextStyle(color: Colors.grey.shade700, fontSize: 12, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 4),
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: apps.map((app) => Chip(
-              label: Text(app, style: const TextStyle(fontSize: 11)),
-              backgroundColor: Colors.green.shade50,
-              side: BorderSide(color: Colors.green.shade200),
-              visualDensity: VisualDensity.compact,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            )).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSlider(
-      String label,
-      double value,
-      ValueChanged<double> onChanged, {
-        bool isRatio = false,
-        List<double>? customValues,
-      }) {
-    List<double> markers = customValues ?? [1, 2, 3, 4, 5];
-    int currentIndex = markers.indexWhere((e) => (e - value).abs() < 0.1);
-    currentIndex = currentIndex == -1 ? 0 : currentIndex;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.black)),
-        Slider(
-          value: currentIndex.toDouble(),
-          min: 0,
-          max: (markers.length - 1).toDouble(),
-          divisions: markers.length - 1,
-          label: isRatio ? '${markers[currentIndex]}x' : '${markers[currentIndex]} hrs',
-          onChanged: (val) => onChanged(markers[val.toInt()]),
-        ),
-      ],
     );
   }
 
   Future<void> _saveRulesToFirestore() async {
+    setState(() => _isSaving = true);
     try {
       final uid = FirebaseAuth.instance.currentUser!.uid;
       final firestore = FirebaseFirestore.instance;
@@ -332,11 +216,15 @@ class _ScreenTimeRulesScreenState extends State<ScreenTimeRulesScreen> {
           .doc('screenTimeRules')
           .set(dataToSave);
 
+      if (!mounted) return;
+      setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Screen time rules saved')),
       );
     } catch (e) {
       print('❌ Failed to save screen time rules: $e');
+      if (!mounted) return;
+      setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to save screen time rules')),
       );

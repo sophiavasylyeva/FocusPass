@@ -5,11 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/constants.dart';
 import '../services/unified_screen_time_service.dart';
-import '../services/educational_task_service.dart';
-import '../services/overlay_notification_service.dart';
-import '../models/educational_task.dart';
-import 'screen_time_test_screen.dart';
-import 'educational_content_test_screen.dart';
+import '../services/productive_task_service.dart';
+import '../models/productive_task.dart';
 import 'login_screen.dart';
 
 class ChildDashboardScreen extends StatefulWidget {
@@ -22,14 +19,22 @@ class ChildDashboardScreen extends StatefulWidget {
 }
 
 class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
-  String? _ageRange;
   List<String> _selectedApps = [];
-  List<String> _subjectsOfInterest = [];
   bool _isLoading = true;
   Map<String, dynamic> _screenTimeStats = {};
   bool _hasUsagePermission = false;
-  List<EducationalTask> _pendingTasks = [];
+
+  final ProductiveTaskService _taskService = ProductiveTaskService();
+  List<ProductiveTask> _todaySubmissions = [];
   bool _tasksLoading = false;
+  String _tierFilter = 'ALL';
+  int _capMinutes = 120;
+
+  bool _usesFamilyActivityPicker = false;
+  int _familyActivityAppCount = 0;
+  int _familyActivityCategoryCount = 0;
+
+  static const List<String> _tiers = ['XS', 'S', 'M', 'L', 'XL'];
 
   static const Map<String, IconData> _appIcons = {
     'Instagram': Icons.camera_alt,
@@ -64,11 +69,13 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    fetchChildData();
+    _fetchChildData();
     _initializeScreenTime();
+    _loadTodaySubmissions();
+    _loadDailyCap();
   }
 
-  Future<void> fetchChildData() async {
+  Future<void> _fetchChildData() async {
     try {
       final query = await FirebaseFirestore.instance
           .collectionGroup('children')
@@ -78,121 +85,89 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
       if (query.docs.isNotEmpty) {
         final data = query.docs.first.data();
         setState(() {
-          _ageRange = data['ageRange'] ?? 'Not set';
           _selectedApps = List<String>.from(data['selectedApps'] ?? []);
-          _subjectsOfInterest = List<String>.from(data['subjectsOfInterest'] ?? []);
+          _usesFamilyActivityPicker = data['usesFamilyActivityPicker'] ?? false;
+          _familyActivityAppCount = (data['familyActivityAppCount'] as num?)?.toInt() ?? 0;
+          _familyActivityCategoryCount = (data['familyActivityCategoryCount'] as num?)?.toInt() ?? 0;
           _isLoading = false;
         });
-        
-        // Load educational tasks after child data is loaded
-        _loadEducationalTasks();
       } else {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
         print('❌ Child not found');
       }
     } catch (e) {
       print('❌ Error fetching child data: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
   Future<void> _initializeScreenTime() async {
-    // Set current child name for screen time service
     await UnifiedScreenTimeService.setCurrentChildName(widget.childName);
-    
-    // Initialize screen time service
     await UnifiedScreenTimeService.initialize();
-    
-    // Check permissions
+
     final hasPermission = await UnifiedScreenTimeService.hasPermissions();
-    
-    setState(() {
-      _hasUsagePermission = hasPermission;
-    });
-    
-    // Get initial stats
+    setState(() => _hasUsagePermission = hasPermission);
+
     final stats = await _getScreenTimeStatsWithFirestoreLimits();
-    setState(() {
-      _screenTimeStats = stats;
-    });
-    
-    // Start periodic updates of screen time stats
+    setState(() => _screenTimeStats = stats);
+
     Timer.periodic(const Duration(minutes: 1), (timer) async {
       if (mounted) {
         final updatedStats = await _getScreenTimeStatsWithFirestoreLimits();
-        setState(() {
-          _screenTimeStats = updatedStats;
-        });
+        setState(() => _screenTimeStats = updatedStats);
       } else {
         timer.cancel();
       }
     });
   }
 
-  Future<void> _loadEducationalTasks() async {
-    print('📚 _loadEducationalTasks: Starting - subjects: $_subjectsOfInterest, age: $_ageRange');
-    
-    if (_subjectsOfInterest.isEmpty || _ageRange == null) {
-      print('📚 _loadEducationalTasks: Waiting for child data - subjects empty: ${_subjectsOfInterest.isEmpty}, age null: ${_ageRange == null}');
-      return;
-    }
-
-    setState(() {
-      _tasksLoading = true;
-    });
-
+  Future<void> _loadTodaySubmissions() async {
+    setState(() => _tasksLoading = true);
     try {
-      final taskService = EducationalTaskService();
-      
-      print('📚 _loadEducationalTasks: Generating daily tasks for ${widget.childName}');
-      // Generate daily tasks if they don't exist
-      await taskService.generateDailyTasks(widget.childName, _subjectsOfInterest, _ageRange!);
-      
-      print('📚 _loadEducationalTasks: Fetching tasks for ${widget.childName}');
-      // Load all tasks for this child
-      final allTasks = await taskService.fetchTasks(widget.childName);
-      
-      print('📚 _loadEducationalTasks: Found ${allTasks.length} total tasks');
-      
-      // Filter to only today's pending tasks that match selected subjects
-      final now = DateTime.now();
-      bool isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
-      
-      final Set<String> allowedSubjects = _subjectsOfInterest.map((s) => s.toLowerCase()).toSet();
-      
-      final todaysMatchingPending = allTasks.where((task) {
-        final matchesDay = isSameDay(task.assignedAt, now);
-        final matchesSubject = allowedSubjects.contains(task.subject.toLowerCase());
-        return matchesDay && matchesSubject && !task.isCompleted;
+      final all = await _taskService.getSubmissionsForChild(widget.childName);
+      final today = DateTime.now();
+      final todayTasks = all.where((t) {
+        return t.submittedAt.year == today.year &&
+            t.submittedAt.month == today.month &&
+            t.submittedAt.day == today.day;
       }).toList();
-      
-      // Ensure only one task per subject (pick the latest by assignedAt if multiple)
-      final Map<String, EducationalTask> latestPerSubject = {};
-      for (final task in todaysMatchingPending) {
-        final key = task.subject.toLowerCase();
-        if (!latestPerSubject.containsKey(key) || task.assignedAt.isAfter(latestPerSubject[key]!.assignedAt)) {
-          latestPerSubject[key] = task;
-        }
-      }
-      final pendingTasks = latestPerSubject.values.toList();
-      
-      print('📚 _loadEducationalTasks: After filtering, ${pendingTasks.length} pending tasks for today and selected subjects');
-      
       setState(() {
-        _pendingTasks = pendingTasks;
+        _todaySubmissions = todayTasks;
         _tasksLoading = false;
       });
     } catch (e) {
-      print('❌ Error loading educational tasks: $e');
-      setState(() {
-        _tasksLoading = false;
-      });
+      print('❌ Error loading today submissions: $e');
+      setState(() => _tasksLoading = false);
     }
   }
+
+  Future<void> _loadDailyCap() async {
+    try {
+      final query = await FirebaseFirestore.instance
+          .collectionGroup('children')
+          .where('name', isEqualTo: widget.childName)
+          .get();
+      if (query.docs.isEmpty) return;
+      final parentUid = query.docs.first.reference.parent.parent!.id;
+      final hours = await _taskService.getDailyCapHours(parentUid, widget.childName);
+      if (mounted) setState(() => _capMinutes = (hours * 60).round());
+    } catch (e) {
+      print('❌ Error loading daily cap: $e');
+    }
+  }
+
+  int get _earnedMinutesToday => _todaySubmissions
+      .where((t) => t.status == 'approved')
+      .fold(0, (sum, t) => sum + (t.awardedMinutes ?? 0));
+
+  int get _pendingCount => _todaySubmissions.where((t) => t.status == 'pending').length;
+
+  List<ProductiveTaskPreset> get _filteredPresets {
+    if (_tierFilter == 'ALL') return kProductivePresets;
+    return kProductivePresets.where((p) => p.tier == _tierFilter).toList();
+  }
+
+  bool get _capReached => _capMinutes > 0 && _earnedMinutesToday >= _capMinutes;
 
   @override
   Widget build(BuildContext context) {
@@ -216,88 +191,6 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
-            icon: const Icon(Icons.school),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => EducationalContentTestScreen(childName: widget.childName),
-                ),
-              );
-            },
-            tooltip: 'Educational Tasks',
-          ),
-          // Screen Time Test button - Hidden from production
-          // IconButton(
-          //   icon: const Icon(Icons.bug_report),
-          //   onPressed: () {
-          //     Navigator.push(
-          //       context,
-          //       MaterialPageRoute(
-          //         builder: (context) => ScreenTimeTestScreen(childName: widget.childName),
-          //       ),
-          //     );
-          //   },
-          //   tooltip: 'Screen Time Test',
-          // ),
-          // Clear All Tasks button - Hidden from production (testing tool)
-          // IconButton(
-          //   icon: const Icon(Icons.clear_all),
-          //   onPressed: () async {
-          //     final taskService = EducationalTaskService();
-          //     await taskService.clearAllTasks(widget.childName);
-          //     _loadEducationalTasks(); // Reload tasks
-          //     ScaffoldMessenger.of(context).showSnackBar(
-          //       const SnackBar(
-          //         content: Text('🗑️ All tasks cleared! New tasks will be generated.'),
-          //         backgroundColor: Colors.orange,
-          //       ),
-          //     );
-          //   },
-          //   tooltip: 'Clear All Tasks (Testing)',
-          // ),
-          // Found Apps in Data button - Hidden from production
-          // IconButton(
-          //   icon: const Icon(Icons.analytics),
-          //   onPressed: () async {
-          //     // Debug: Run comprehensive diagnosis
-          //     print('🔍 DEBUG: Running comprehensive diagnosis...');
-          //     final diagnosis = await UnifiedScreenTimeService.diagnoseProblem();
-          //     final stats = await UnifiedScreenTimeService.getCurrentUsageStats();
-          //     setState(() {
-          //       _screenTimeStats = stats;
-          //     });
-          //     
-          //     // Show detailed results
-          //     final hasPermission = diagnosis['hasPermission'] ?? false;
-          //     final message = hasPermission 
-          //       ? 'Found ${stats.length} apps with data. Check console for details.'
-          //       : 'NO PERMISSIONS! Go to Settings > Apps > Special Access > Usage Access > FocusPass';
-          //     
-          //     ScaffoldMessenger.of(context).showSnackBar(
-          //       SnackBar(
-          //         content: Text('🔍 $message'),
-          //         backgroundColor: hasPermission ? Colors.blue : Colors.red,
-          //         duration: const Duration(seconds: 5),
-          //       ),
-          //     );
-          //   },
-          //   tooltip: 'Debug Diagnosis',
-          // ),
-          // Test Notifications button - Hidden from production (testing tool)
-          // IconButton(
-          //   icon: const Icon(Icons.notifications),
-          //   onPressed: () {
-          //     // Test overlay notifications
-          //     OverlayNotificationService.showScreenTimeWarning(
-          //       context: context,
-          //       appName: 'YouTube',
-          //       remainingMinutes: 5,
-          //     );
-          //   },
-          //   tooltip: 'Test Notifications',
-          // ),
-          IconButton(
             icon: const Icon(Icons.admin_panel_settings),
             onPressed: () => _showParentalPinOverrideDialog(),
             tooltip: 'Parental Override',
@@ -307,42 +200,322 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
-        padding: const EdgeInsets.all(20),
-        child: ListView(
-          children: [
-            Text(
-              'Welcome, ${widget.childName}!',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+              padding: const EdgeInsets.all(20),
+              child: ListView(
+                children: [
+                  Text(
+                    'Welcome, ${widget.childName}!',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Text(
+                    'Ready to earn some screen time?',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  const SizedBox(height: 20),
+
+                  _buildEarnedTodayCard(),
+                  const SizedBox(height: 20),
+
+                  _buildTierFilter(),
+                  const SizedBox(height: 16),
+                  _buildPresetList(),
+                  const SizedBox(height: 12),
+                  _buildCustomButton(),
+
+                  if (!_tasksLoading && _todaySubmissions.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    _buildSubmissionsSection(),
+                  ],
+
+                  const SizedBox(height: 28),
+                  const Text(
+                    'Screen Time Management:',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildScreenTimeWidget(),
+                  const SizedBox(height: 24),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            const SizedBox(height: 20),
+    );
+  }
 
-            // ⏰ Screen Time Section
-            const Text(
-              'Screen Time Management:',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
+  Widget _buildEarnedTodayCard() {
+    final progress = _capMinutes > 0 ? (_earnedMinutesToday / _capMinutes).clamp(0.0, 1.0) : 0.0;
+    final remaining = (_capMinutes - _earnedMinutesToday).clamp(0, _capMinutes);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: kDarkGreen,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'EARNED TODAY',
+            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                _formatTime(_earnedMinutesToday),
+                style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '/ ${_formatTime(_capMinutes)}',
+                style: const TextStyle(color: Colors.white60, fontSize: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: Colors.white24,
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
             ),
-            const SizedBox(height: 12),
-            _buildScreenTimeWidget(),
-            const SizedBox(height: 24),
-            
-            // 📝 Manage Subjects Section
-            _buildManageSubjectsWidget(),
-            const SizedBox(height: 24),
-
-            // 📚 Educational Tasks Section
-            _buildEducationalTasksWidget(),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            remaining > 0
+                ? '${_formatTime(remaining)} still available to earn today.'
+                : 'You\'ve reached today\'s cap. Nice work!',
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          if (_pendingCount > 0) ...[
+            const SizedBox(height: 8),
+            Text(
+              '$_pendingCount ${_pendingCount == 1 ? 'activity' : 'activities'} waiting for your parent',
+              style: const TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
 
+  Widget _buildTierFilter() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _TierChip(
+            label: 'All',
+            active: _tierFilter == 'ALL',
+            onTap: () => setState(() => _tierFilter = 'ALL'),
+          ),
+          const SizedBox(width: 8),
+          ..._tiers.map((t) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _TierChip(
+                  label: '${kTierMinutes[t]} min',
+                  active: _tierFilter == t,
+                  onTap: () => setState(() => _tierFilter = t),
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPresetList() {
+    final presets = _filteredPresets;
+    return Column(
+      children: presets
+          .map((p) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _PresetCard(preset: p, onTap: () => _submitPreset(p)),
+              ))
+          .toList(),
+    );
+  }
+
+  Widget _buildCustomButton() {
+    return OutlinedButton.icon(
+      onPressed: _submitCustom,
+      icon: const Icon(Icons.add),
+      label: const Text('Add your own activity'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: Colors.white,
+        side: const BorderSide(color: Colors.white54, width: 1.5),
+        minimumSize: const Size.fromHeight(52),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _buildSubmissionsSection() {
+    final pending = _todaySubmissions.where((s) => s.status == 'pending').toList();
+    final resolved = _todaySubmissions.where((s) => s.status != 'pending').toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (pending.isNotEmpty) ...[
+          const Text(
+            'WAITING FOR PARENT',
+            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+          ),
+          const SizedBox(height: 8),
+          ...pending.map((s) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _SubmissionRow(task: s),
+              )),
+          const SizedBox(height: 16),
+        ],
+        if (resolved.isNotEmpty) ...[
+          const Text(
+            'RESOLVED TODAY',
+            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+          ),
+          const SizedBox(height: 8),
+          ...resolved.map((s) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _SubmissionRow(task: s),
+              )),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _submitPreset(ProductiveTaskPreset preset) async {
+    if (_capReached) {
+      _showComeBackTomorrowDialog();
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Text(preset.emoji, style: const TextStyle(fontSize: 28)),
+            const SizedBox(width: 12),
+            Expanded(child: Text(preset.title)),
+          ],
+        ),
+        content: Text(
+          'Worth ${_formatTime(kTierMinutes[preset.tier]!)} of screen time once approved.',
+          style: const TextStyle(fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kAccentGreen,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Send to parent'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final parentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final task = ProductiveTask(
+      id: ProductiveTaskService.generateTaskId(widget.childName),
+      childName: widget.childName,
+      parentUid: parentUid,
+      title: preset.title,
+      emoji: preset.emoji,
+      tier: preset.tier,
+      category: preset.category,
+      proposedMinutes: kTierMinutes[preset.tier]!,
+      isCustom: false,
+      status: 'pending',
+      submittedAt: DateTime.now(),
+    );
+
+    try {
+      await _taskService.submitTask(task);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${preset.emoji} Sent to your parent!'),
+          backgroundColor: kAccentGreen,
+        ),
+      );
+      _loadTodaySubmissions();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error submitting task: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _submitCustom() async {
+    if (_capReached) {
+      _showComeBackTomorrowDialog();
+      return;
+    }
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => _CustomActivityDialog(),
+    );
+    if (result == null) return;
+
+    final parentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final task = ProductiveTask(
+      id: ProductiveTaskService.generateTaskId(widget.childName),
+      childName: widget.childName,
+      parentUid: parentUid,
+      title: result['title']!,
+      emoji: '🌱',
+      tier: 'S',
+      category: 'Home',
+      proposedMinutes: 15,
+      isCustom: true,
+      note: result['note']!.isEmpty ? null : result['note'],
+      status: 'pending',
+      submittedAt: DateTime.now(),
+    );
+
+    try {
+      await _taskService.submitTask(task);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🌱 Custom activity sent to your parent!'),
+          backgroundColor: kAccentGreen,
+        ),
+      );
+      _loadTodaySubmissions();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error submitting task: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   Widget _buildScreenTimeWidget() {
+    if (_usesFamilyActivityPicker) {
+      return _buildFamilyActivitySummaryCard();
+    }
+
     if (!_hasUsagePermission) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -360,15 +533,14 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Please enable screen time permissions in device settings to track usage.',
-              style: const TextStyle(color: Colors.white70),
+              style: TextStyle(color: Colors.white70),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: () {
-                // Show platform-specific instructions
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(UnifiedScreenTimeService.getPermissionInstructions()),
@@ -420,10 +592,7 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        app,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
+                      Text(app, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                       const Text('No usage data', style: TextStyle(color: Colors.grey)),
                     ],
                   ),
@@ -440,7 +609,6 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
 
         final usedMinutes = (usedTimeMs / (1000 * 60)).round();
         final remainingMinutes = (remainingTimeMs / (1000 * 60)).round();
-
         final progress = dailyLimitMs > 0 ? (usedTimeMs / dailyLimitMs).clamp(0.0, 1.0) : 0.0;
 
         return Container(
@@ -494,10 +662,7 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Used: ${_formatTime(usedMinutes)}',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
+                  Text('Used: ${_formatTime(usedMinutes)}', style: TextStyle(color: Colors.grey[600])),
                   Text(
                     'Remaining: ${_formatTime(remainingMinutes)}',
                     style: TextStyle(color: isBlocked ? Colors.red : Colors.grey[600]),
@@ -519,7 +684,7 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Complete learning tasks to earn more screen time!',
+                            'Complete productive tasks to earn more screen time!',
                             style: TextStyle(color: Colors.red, fontSize: 12),
                           ),
                         ),
@@ -534,263 +699,82 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
     );
   }
 
-  Widget _buildEducationalTasksWidget() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Educational Tasks:',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
-        ),
-        const SizedBox(height: 12),
-        
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.school, color: kAccentGreen, size: 32),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Complete Educational Tasks',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Answer questions to earn screen time for your apps',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EducationalContentTestScreen(childName: widget.childName),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kAccentGreen,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                ),
-                child: const Text('Start Learning'),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-  
-  final List<String> _allSubjects = [
-    'Math', 'Science', 'English', 'History', 'Art', 'Coding', 'Geography',
-  ];
-
-  Widget _buildManageSubjectsWidget() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'My Subjects:',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
-            ),
-            TextButton.icon(
-              onPressed: _showAddSubjectDialog,
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text('Add Subject', style: TextStyle(color: Colors.white)),
-              style: TextButton.styleFrom(
-                backgroundColor: kDarkGreen,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: _subjectsOfInterest.map((subject) {
-            return Chip(
-              label: Text(subject, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-              backgroundColor: kDarkGreen,
-              deleteIcon: const Icon(Icons.close, size: 18, color: Colors.white70),
-              onDeleted: () => _removeSubject(subject),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              side: BorderSide.none,
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  void _showAddSubjectDialog() {
-    final availableSubjects = _allSubjects
-        .where((s) => !_subjectsOfInterest.contains(s))
-        .toList();
-
-    if (availableSubjects.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You have already added all available subjects.')),
-      );
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Add a Subject'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: availableSubjects.map((subject) {
-              return ListTile(
-                title: Text(subject),
-                leading: const Icon(Icons.add_circle_outline),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _addSubject(subject);
-                },
-              );
-            }).toList(),
-          ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        );
-      },
-    );
-  }
-
-  Future<void> _addSubject(String subject) async {
-    setState(() {
-      _subjectsOfInterest.add(subject);
-    });
-    await _updateSubjectsInFirestore();
-    final taskService = EducationalTaskService();
-    await taskService.clearTodaysPendingTasks(widget.childName);
-    _loadEducationalTasks();
-  }
-
-  Future<void> _removeSubject(String subject) async {
-    if (_subjectsOfInterest.length <= 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You must have at least one subject selected.')),
-      );
-      return;
-    }
-    setState(() {
-      _subjectsOfInterest.remove(subject);
-    });
-    await _updateSubjectsInFirestore();
-    final taskService = EducationalTaskService();
-    await taskService.clearTodaysPendingTasks(widget.childName);
-    _loadEducationalTasks();
-  }
-
-  Future<void> _updateSubjectsInFirestore() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('children')
-          .doc(widget.childName)
-          .update({
-        'subjectsOfInterest': _subjectsOfInterest,
-      });
-    } catch (e) {
-      print('Error updating subjects: $e');
-    }
-  }
-
-  void _startTask(EducationalTask task) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EducationalContentTestScreen(childName: widget.childName),
+  Widget _buildFamilyActivitySummaryCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
       ),
-    );
-  }
-  
-  void _onTaskCompleted(EducationalTask completedTask) {
-    // Reload tasks to refresh the UI
-    _loadEducationalTasks();
-    
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('🎉 Task completed! You earned ${completedTask.screenTimeRewardMinutes} minutes!'),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: kAccentGreen.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.apps, color: kDarkGreen),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Managed by Screen Time',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$_familyActivityAppCount ${_familyActivityAppCount == 1 ? 'app' : 'apps'} and '
+                  '$_familyActivityCategoryCount ${_familyActivityCategoryCount == 1 ? 'category' : 'categories'} '
+                  'are blocked once your earned screen time runs out.',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.3),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
   String _formatTime(int minutes) {
-    if (minutes < 60) {
-      return '${minutes}m';
-    } else {
-      final hours = minutes ~/ 60;
-      final mins = minutes % 60;
-      return '${hours}h ${mins}m';
-    }
+    if (minutes < 60) return '${minutes}m';
+    final hours = minutes ~/ 60;
+    final mins = minutes % 60;
+    return mins == 0 ? '${hours}h' : '${hours}h ${mins}m';
   }
 
   Future<void> _showParentalPinOverrideDialog() async {
-    // Check if parental override has already been used today
     final hasUsedOverrideToday = await _checkIfOverrideUsedToday();
-    
+
     if (hasUsedOverrideToday) {
       _showOverrideLimitReachedDialog();
       return;
     }
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return _ParentalPinOverrideDialog(childName: widget.childName, onOverrideApplied: _refreshScreenTimeOnly);
+        return _ParentalPinOverrideDialog(
+          childName: widget.childName,
+          onOverrideApplied: _refreshScreenTimeOnly,
+        );
       },
     );
   }
 
   Future<void> _refreshScreenTimeOnly() async {
     try {
-      print('ChildDashboard: Refreshing screen time stats after parental override...');
-      
-      // Give Firestore a moment to propagate the changes
-      await Future.delayed(Duration(milliseconds: 300));
-      
-      // Get the updated stats from Firestore (this already includes the bonus calculation)
+      await Future.delayed(const Duration(milliseconds: 300));
       final updatedStats = await _getScreenTimeStatsWithFirestoreLimits();
-      
       if (mounted) {
-        setState(() {
-          _screenTimeStats = updatedStats;
-        });
-        print('ChildDashboard: Screen time stats refreshed successfully. Found ${updatedStats.length} apps.');
-        
-        // Log the updated remaining times for debugging
-        updatedStats.forEach((appName, stats) {
-          final remainingMinutes = (stats['remainingTime'] as num) ~/ (60 * 1000);
-          print('ChildDashboard: $appName remaining time: ${remainingMinutes}m');
-        });
+        setState(() => _screenTimeStats = updatedStats);
       }
     } catch (e) {
       print('ChildDashboard: Error refreshing screen time stats: $e');
@@ -799,83 +783,49 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
 
   Future<Map<String, dynamic>> _getScreenTimeStatsWithFirestoreLimits() async {
     try {
-      print('ChildDashboard: Getting screen time stats with Firestore limits...');
-      
-      // Get usage data from the screen time service
       final usageStats = await UnifiedScreenTimeService.getCurrentUsageStats();
-      print('ChildDashboard: Got ${usageStats.length} apps from UnifiedScreenTimeService');
-      print('ChildDashboard: UnifiedScreenTimeService stats:');
-      usageStats.forEach((appName, stats) {
-        final usedMinutes = (stats['usedTime'] as num) ~/ (60 * 1000);
-        final remainingMinutes = (stats['remainingTime'] as num) ~/ (60 * 1000);
-        final limitMinutes = (stats['dailyLimit'] as num) ~/ (60 * 1000);
-        print('  $appName: used ${usedMinutes}m, remaining ${remainingMinutes}m, limit ${limitMinutes}m');
-      });
-      
-      // Get app limits from Firestore
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        print('ChildDashboard: No user logged in');
-        return usageStats;
-      }
 
-      print('ChildDashboard: About to read from Firestore path: users/${user.uid}/children/${widget.childName}');
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return usageStats;
+
       final childDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .collection('children')
           .doc(widget.childName)
           .get();
-      
-      if (!childDoc.exists) {
-        print('ChildDashboard: Child document does not exist at path users/${user.uid}/children/${widget.childName}');
-        return usageStats;
-      }
+
+      if (!childDoc.exists) return usageStats;
 
       final childData = childDoc.data()!;
-      print('ChildDashboard: Full child document data: $childData');
       final Map<String, dynamic> appLimits = childData['appLimits'] ?? {};
-      print('ChildDashboard: Got ${appLimits.length} app limits from Firestore');
-      
-      // Log the specific app limits for debugging
-      appLimits.forEach((appName, limitData) {
-        if (limitData is Map<String, dynamic>) {
-          final limitMinutes = limitData['dailyLimitMinutes'] ?? 0;
-          print('ChildDashboard: Firestore limit for $appName: ${limitMinutes}m');
-        }
-      });
-      
-      // Combine usage data with updated limits from Firestore
+
       Map<String, dynamic> updatedStats = {};
       usageStats.forEach((appName, stats) {
         if (appLimits.containsKey(appName)) {
           final limitData = appLimits[appName];
           final firestoreLimitMinutes = limitData['dailyLimitMinutes'] ?? 60;
           final firestoreLimitMs = firestoreLimitMinutes * 60 * 1000;
-          
+
           final usedTimeMs = stats['usedTime'] ?? 0;
           final earnedTimeMs = stats['earnedTime'] ?? 0;
-          
-          // Simple calculation: Use Firestore limit directly and calculate remaining time
-          final remainingTimeMs = (firestoreLimitMs + earnedTimeMs - usedTimeMs).clamp(0, double.infinity).toInt();
-          
-          // Determine if the app should be blocked
+
+          final remainingTimeMs =
+              (firestoreLimitMs + earnedTimeMs - usedTimeMs).clamp(0, double.infinity).toInt();
           final totalAvailableTime = firestoreLimitMs + earnedTimeMs;
           final isBlocked = usedTimeMs >= totalAvailableTime;
-          
+
           updatedStats[appName] = {
             ...stats,
             'dailyLimit': firestoreLimitMs,
             'remainingTime': remainingTimeMs,
             'isBlocked': isBlocked,
           };
-          
-          print('ChildDashboard: Updated $appName - firestore limit: ${firestoreLimitMinutes}m, used: ${usedTimeMs ~/ (60 * 1000)}m, remaining: ${remainingTimeMs ~/ (60 * 1000)}m');
         } else {
           updatedStats[appName] = stats;
         }
       });
-      
+
       return updatedStats;
     } catch (e) {
       print('ChildDashboard: Error getting Firestore limits: $e');
@@ -894,15 +844,13 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
           .collection('children')
           .doc(widget.childName)
           .get();
-      
+
       if (!childDoc.exists) return false;
 
       final childData = childDoc.data()!;
       final lastOverrideDate = childData['lastParentalOverride'] as String?;
       final today = DateTime.now().toIso8601String().split('T')[0];
-      
-      print('ParentalOverride: Last override date: $lastOverrideDate, Today: $today');
-      
+
       return lastOverrideDate == today;
     } catch (e) {
       print('ParentalOverride: Error checking override usage: $e');
@@ -918,40 +866,70 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
         return AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.block, color: Colors.red, size: 28),
-              SizedBox(width: 8),
+              const Icon(Icons.block, color: Colors.red, size: 28),
+              const SizedBox(width: 8),
               Text(
                 'Daily Limit Reached',
-                style: TextStyle(
-                  color: kDarkGreen,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: kDarkGreen, fontWeight: FontWeight.bold),
               ),
             ],
           ),
           content: Text(
-            '${widget.childName} has already reached their screen time for today.\n\nThe parental override can only be used once per day. Please try again tomorrow.',
-            style: TextStyle(fontSize: 16),
+            '${widget.childName} has already used the parental override today.\n\nThe override can only be used once per day. Please try again tomorrow.',
+            style: const TextStyle(fontSize: 16),
           ),
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           actions: [
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              child: Text(
-                'OK',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              child: const Text('OK', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+          ],
+          actionsAlignment: MainAxisAlignment.center,
+        );
+      },
+    );
+  }
+
+  void _showComeBackTomorrowDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              const Text('⏳', style: TextStyle(fontSize: 26)),
+              const SizedBox(width: 8),
+              Text(
+                'Come back tomorrow!',
+                style: TextStyle(color: kDarkGreen, fontWeight: FontWeight.bold),
               ),
+            ],
+          ),
+          content: const Text(
+            "You've earned all the screen time you can for today. Log more activities tomorrow to keep earning!",
+            style: TextStyle(fontSize: 16),
+          ),
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kAccentGreen,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('OK', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ],
           actionsAlignment: MainAxisAlignment.center,
@@ -960,6 +938,274 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
     );
   }
 }
+
+class _TierChip extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _TierChip({required this.label, required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: active ? Colors.white : Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: active ? kDarkGreen : Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PresetCard extends StatelessWidget {
+  final ProductiveTaskPreset preset;
+  final VoidCallback onTap;
+
+  const _PresetCard({required this.preset, required this.onTap});
+
+  String _fmt(int m) {
+    if (m < 60) return '${m}m';
+    final h = m ~/ 60;
+    final r = m % 60;
+    return r == 0 ? '${h}h' : '${h}h ${r}m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final minutes = kTierMinutes[preset.tier]!;
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: kAccentGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(preset.emoji, style: const TextStyle(fontSize: 22)),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      preset.title,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      kTierLabel[preset.tier]!,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    _fmt(minutes),
+                    style: TextStyle(
+                      color: kDarkGreen,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Text(
+                    'screen time',
+                    style: TextStyle(color: Colors.grey[500], fontSize: 10),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SubmissionRow extends StatelessWidget {
+  final ProductiveTask task;
+
+  const _SubmissionRow({required this.task});
+
+  String _fmt(int m) {
+    if (m < 60) return '${m}m';
+    final h = m ~/ 60;
+    final r = m % 60;
+    return r == 0 ? '${h}h' : '${h}h ${r}m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Color statusColor;
+    String statusLabel;
+    IconData statusIcon;
+
+    switch (task.status) {
+      case 'approved':
+        statusColor = Colors.green;
+        statusLabel = '+${_fmt(task.awardedMinutes ?? task.proposedMinutes)}';
+        statusIcon = Icons.check_circle;
+        break;
+      case 'rejected':
+        statusColor = Colors.red;
+        statusLabel = 'Declined';
+        statusIcon = Icons.cancel;
+        break;
+      default:
+        statusColor = Colors.orange;
+        statusLabel = 'Waiting';
+        statusIcon = Icons.hourglass_empty;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Text(task.emoji, style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  '${_fmt(task.proposedMinutes)}${task.isCustom ? ' · custom' : ''}',
+                  style: const TextStyle(color: Colors.white60, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Row(
+            children: [
+              Icon(statusIcon, color: statusColor, size: 16),
+              const SizedBox(width: 4),
+              Text(
+                statusLabel,
+                style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomActivityDialog extends StatefulWidget {
+  @override
+  State<_CustomActivityDialog> createState() => _CustomActivityDialogState();
+}
+
+class _CustomActivityDialogState extends State<_CustomActivityDialog> {
+  final _titleController = TextEditingController();
+  final _noteController = TextEditingController();
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canSubmit = _titleController.text.trim().length >= 2;
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text('Your own activity'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Starts at 15 minutes. Your parent can adjust the time when approving.',
+            style: TextStyle(fontSize: 13, color: Colors.grey),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _titleController,
+            maxLength: 80,
+            decoration: InputDecoration(
+              hintText: 'What did you do?',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              counterText: '',
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _noteController,
+            maxLength: 240,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Add a quick note (optional)',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              counterText: '',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: canSubmit
+              ? () => Navigator.pop(context, {
+                    'title': _titleController.text.trim(),
+                    'note': _noteController.text.trim(),
+                  })
+              : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kAccentGreen,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          child: const Text('Send to Parent'),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Parental PIN Override Dialog (unchanged) ────────────────────────────────
 
 class _ParentalPinOverrideDialog extends StatefulWidget {
   final String childName;
@@ -987,14 +1233,11 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
     return AlertDialog(
       title: Row(
         children: [
-          Icon(Icons.admin_panel_settings, color: Colors.orange, size: 28),
-          SizedBox(width: 8),
+          const Icon(Icons.admin_panel_settings, color: Colors.orange, size: 28),
+          const SizedBox(width: 8),
           Text(
             'Parental Override',
-            style: TextStyle(
-              color: kDarkGreen,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: kDarkGreen, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -1004,9 +1247,9 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
         children: [
           Text(
             'Enter the parental PIN to grant ${widget.childName} an additional 15 minutes of screen time.',
-            style: TextStyle(fontSize: 16),
+            style: const TextStyle(fontSize: 16),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           TextField(
             controller: _pinController,
             obscureText: true,
@@ -1016,17 +1259,15 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
               labelText: 'Parental PIN',
               hintText: 'Enter 5-digit PIN',
               counterText: '',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              prefixIcon: Icon(Icons.lock),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              prefixIcon: const Icon(Icons.lock),
               errorText: _errorMessage.isEmpty ? null : _errorMessage,
             ),
             onSubmitted: (_) => _validateAndOverride(),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Container(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.orange.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
@@ -1034,11 +1275,11 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
             ),
             child: Row(
               children: [
-                Icon(Icons.warning, color: Colors.orange, size: 20),
-                SizedBox(width: 8),
+                const Icon(Icons.warning, color: Colors.orange, size: 20),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'This will add 15 minutes to today\'s screen time allowance.',
+                    "This will add 15 minutes to today's screen time allowance.",
                     style: TextStyle(fontSize: 12, color: Colors.orange[800]),
                   ),
                 ),
@@ -1047,9 +1288,7 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
           ),
         ],
       ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       actions: [
         TextButton(
           onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
@@ -1060,21 +1299,16 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.orange,
             foregroundColor: Colors.white,
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
           child: _isLoading
-              ? SizedBox(
+              ? const SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                 )
-              : Text('Override', style: TextStyle(fontWeight: FontWeight.bold)),
+              : const Text('Override', style: TextStyle(fontWeight: FontWeight.bold)),
         ),
       ],
     );
@@ -1082,18 +1316,13 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
 
   Future<void> _validateAndOverride() async {
     final pin = _pinController.text.trim();
-    
+
     if (pin.length != 5) {
-      setState(() {
-        _errorMessage = 'PIN must be 5 digits';
-      });
+      setState(() => _errorMessage = 'PIN must be 5 digits');
       return;
     }
-
     if (!RegExp(r'^\d+$').hasMatch(pin)) {
-      setState(() {
-        _errorMessage = 'PIN must contain only numbers';
-      });
+      setState(() => _errorMessage = 'PIN must contain only numbers');
       return;
     }
 
@@ -1103,9 +1332,7 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
     });
 
     try {
-      // Validate PIN and apply override
       final success = await _applyParentalOverride(pin);
-      
       if (success) {
         Navigator.of(context).pop();
         _showOverrideSuccessDialog();
@@ -1120,43 +1347,21 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
         _errorMessage = 'Error applying override. Please try again.';
         _isLoading = false;
       });
-      print('ParentalOverride: Error - $e');
     }
   }
 
   Future<bool> _applyParentalOverride(String pin) async {
     try {
-      // Fetch the actual parental PIN from Firestore
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        print('ParentalOverride: No user logged in');
-        return false;
-      }
+      if (user == null) return false;
 
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      
-      if (!doc.exists) {
-        print('ParentalOverride: No user document found');
-        return false;
-      }
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (!doc.exists) return false;
 
       final storedPin = doc.data()?['pin'];
-      if (storedPin == null) {
-        print('ParentalOverride: No PIN set in parent settings');
-        return false;
-      }
+      if (storedPin == null || pin != storedPin) return false;
 
-      if (pin != storedPin) {
-        print('ParentalOverride: PIN mismatch');
-        return false;
-      }
-
-      // Grant 15 minutes of additional screen time by updating each app's limits
       await _addBonusTimeToAllApps(15);
-      print('ParentalOverride: Added 15 minutes bonus time for ${widget.childName}');
       return true;
     } catch (e) {
       print('ParentalOverride: Error - $e');
@@ -1167,102 +1372,50 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
   Future<void> _addBonusTimeToAllApps(int bonusMinutes) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        print('ParentalOverride: No user logged in');
-        return;
-      }
+      if (user == null) return;
 
-      // Get all the child's app limits
       final childDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .collection('children')
           .doc(widget.childName)
           .get();
-      
-      if (!childDoc.exists) {
-        print('ParentalOverride: Child document does not exist');
-        return;
-      }
+
+      if (!childDoc.exists) return;
 
       final childData = childDoc.data()!;
       final Map<String, dynamic> appLimits = childData['appLimits'] ?? {};
-      
-      // If appLimits is empty, we need to create them from selectedApps and screen time rules
+
       if (appLimits.isEmpty) {
-        print('ParentalOverride: No appLimits found, creating them from selectedApps and screen time rules');
         await _createInitialAppLimits(childData, bonusMinutes);
         return;
       }
-      
-      // Add bonus time to each app's daily limit
+
       Map<String, dynamic> updatedLimits = {};
-      print('ParentalOverride: Found ${appLimits.length} apps to update');
-      print('ParentalOverride: Original appLimits contents:');
-      appLimits.forEach((appName, limitData) {
-        print('  $appName: $limitData');
-      });
-      
       appLimits.forEach((appName, limitData) {
         if (limitData is Map<String, dynamic>) {
           final currentLimit = limitData['dailyLimitMinutes'] ?? 0;
-          final newLimit = currentLimit + bonusMinutes;
           updatedLimits[appName] = {
             ...limitData,
-            'dailyLimitMinutes': newLimit,
+            'dailyLimitMinutes': currentLimit + bonusMinutes,
           };
-          print('ParentalOverride: Updated $appName limit: ${currentLimit}m → ${newLimit}m');
         } else {
-          print('ParentalOverride: WARNING - $appName limitData is not a Map: $limitData');
           updatedLimits[appName] = limitData;
         }
       });
-      
-      print('ParentalOverride: Final updatedLimits to save:');
-      updatedLimits.forEach((appName, limitData) {
-        print('  $appName: $limitData');
-      });
 
-      // Update the limits in Firestore and record the override date
-      final today = DateTime.now().toIso8601String().split('T')[0]; // YYYY-MM-DD format
-      print('ParentalOverride: About to write to Firestore path: users/${user.uid}/children/${widget.childName}');
+      final today = DateTime.now().toIso8601String().split('T')[0];
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .collection('children')
           .doc(widget.childName)
-          .update({
-            'appLimits': updatedLimits,
-            'lastParentalOverride': today,
-          });
+          .update({'appLimits': updatedLimits, 'lastParentalOverride': today});
 
-      print('ParentalOverride: Successfully updated Firestore with new limits and recorded override date: $today');
-      
-      // Verify the update worked by reading back
-      final verifyDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('children')
-          .doc(widget.childName)
-          .get();
-      
-      if (verifyDoc.exists) {
-        final verifyLimits = verifyDoc.data()!['appLimits'] ?? {};
-        print('ParentalOverride: Verified Firestore limits:');
-        verifyLimits.forEach((app, data) {
-          if (data is Map<String, dynamic>) {
-            print('  - $app: ${data['dailyLimitMinutes']}m');
-          }
-        });
-      }
-
-      // Force update the screen time rules in the unified service to sync with Firestore
       await UnifiedScreenTimeService.updateScreenTimeRules();
-      
-      print('ParentalOverride: Successfully added $bonusMinutes minutes to all apps and updated unified service');
     } catch (e) {
       print('ParentalOverride: Error adding bonus time - $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -1274,44 +1427,33 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
         return AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.check_circle, color: Colors.green, size: 28),
-              SizedBox(width: 8),
+              const Icon(Icons.check_circle, color: Colors.green, size: 28),
+              const SizedBox(width: 8),
               Text(
                 'Override Applied!',
-                style: TextStyle(
-                  color: kDarkGreen,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: kDarkGreen, fontWeight: FontWeight.bold),
               ),
             ],
           ),
           content: Text(
-            '${widget.childName} has been granted an additional 15 minutes of screen time for today.\n\nThe extra time has been added to all app limits and should now be visible in the Screen Time Management section below. The updated remaining time may take a few moments to appear.',
-            style: TextStyle(fontSize: 16),
+            '${widget.childName} has been granted an additional 15 minutes of screen time for today.',
+            style: const TextStyle(fontSize: 16),
           ),
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           actions: [
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                // Single refresh call to avoid glitchy multiple updates
                 widget.onOverrideApplied?.call();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: kAccentGreen,
                 foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              child: Text(
-                'OK',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
+              child: const Text('OK', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ],
           actionsAlignment: MainAxisAlignment.center,
@@ -1326,22 +1468,18 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
       if (user == null) return;
 
       final selectedApps = List<String>.from(childData['selectedApps'] ?? []);
-      print('ParentalOverride: Creating app limits for selected apps: $selectedApps');
-      
-      // Get the parent's screen time rules to determine the base daily limit
+
       final settingsDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .collection('settings')
           .doc('screenTimeRules')
           .get();
-      
-      double baseLimitHours = 1.0; // Default 1 hour
-      
+
+      double baseLimitHours = 1.0;
       if (settingsDoc.exists) {
         final settingsData = settingsDoc.data()!;
         final applySameForAll = settingsData['applySameForAll'] ?? false;
-        
         if (applySameForAll) {
           baseLimitHours = (settingsData['unifiedRules']?['limit'] ?? 1.0).toDouble();
         } else {
@@ -1351,40 +1489,24 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
           }
         }
       }
-      
-      final baseLimitMinutes = (baseLimitHours * 60).toInt();
-      final newLimitMinutes = baseLimitMinutes + bonusMinutes;
-      
-      print('ParentalOverride: Base limit: ${baseLimitMinutes}m, adding bonus: ${bonusMinutes}m, new limit: ${newLimitMinutes}m');
-      
-      // Create appLimits for each selected app
+
+      final newLimitMinutes = (baseLimitHours * 60).toInt() + bonusMinutes;
+
       Map<String, dynamic> appLimits = {};
       for (final appName in selectedApps) {
-        appLimits[appName] = {
-          'dailyLimitMinutes': newLimitMinutes,
-        };
+        appLimits[appName] = {'dailyLimitMinutes': newLimitMinutes};
       }
-      
-      print('ParentalOverride: Created initial appLimits: $appLimits');
-      
-      // Save to Firestore and record the override date
-      final today = DateTime.now().toIso8601String().split('T')[0]; // YYYY-MM-DD format
+
+      final today = DateTime.now().toIso8601String().split('T')[0];
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .collection('children')
           .doc(widget.childName)
-          .update({
-            'appLimits': appLimits,
-            'lastParentalOverride': today,
-          });
-      
-      print('ParentalOverride: Successfully created and saved initial appLimits with bonus and recorded override date: $today');
-      
+          .update({'appLimits': appLimits, 'lastParentalOverride': today});
     } catch (e) {
-      print('ParentalOverride: Error creating initial app limits: $e');
-      throw e;
+      print('ParentalOverride: Error creating initial app limits - $e');
+      rethrow;
     }
   }
-
 }

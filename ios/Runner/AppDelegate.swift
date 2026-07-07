@@ -10,7 +10,7 @@ import UIKit
     GeneratedPluginRegistrant.register(with: self)
     
     // Register Screen Time method channel
-    if #available(iOS 15.0, *) {
+    if #available(iOS 16.0, *) {
       ScreenTimeMethodChannel.register(with: registrar(forPlugin: "ScreenTimeMethodChannel")!)
     }
     

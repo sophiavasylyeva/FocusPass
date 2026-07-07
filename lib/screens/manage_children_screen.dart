@@ -16,6 +16,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
   final _childNameController = TextEditingController();
   final _childUsernameController = TextEditingController();
   final _childPasswordController = TextEditingController();
+  final _addChildFormKey = GlobalKey<FormState>();
 
   @override
   void initState() {
@@ -72,34 +73,56 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Add a child'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _childNameController,
-              decoration: const InputDecoration(
-                labelText: "Child's Name",
-                border: OutlineInputBorder(),
+        content: Form(
+          key: _addChildFormKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _childNameController,
+                decoration: const InputDecoration(
+                  labelText: "Child's Name",
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return "Please enter the child's name";
+                  }
+                  return null;
+                },
               ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _childUsernameController,
-              decoration: const InputDecoration(
-                labelText: "Child Username",
-                border: OutlineInputBorder(),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _childUsernameController,
+                maxLength: 20,
+                decoration: const InputDecoration(
+                  labelText: "Child Username",
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().length < 3) {
+                    return 'Username must be at least 3 characters';
+                  }
+                  return null;
+                },
               ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _childPasswordController,
-              decoration: const InputDecoration(
-                labelText: "Password",
-                border: OutlineInputBorder(),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _childPasswordController,
+                decoration: const InputDecoration(
+                  labelText: "Password",
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+                validator: (value) {
+                  if (value == null || value.trim().length < 6) {
+                    return 'Password must be at least 6 characters';
+                  }
+                  return null;
+                },
               ),
-              obscureText: true,
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -108,18 +131,11 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              if (!_addChildFormKey.currentState!.validate()) return;
+
               final name = _childNameController.text.trim();
               final username = _childUsernameController.text.trim();
               final password = _childPasswordController.text.trim();
-
-              if (name.isEmpty || username.length < 3 || password.length < 6) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Username must be at least 3 characters and password at least 6 characters'),
-                  ),
-                );
-                return;
-              }
 
               try {
                 final parentUid = FirebaseAuth.instance.currentUser!.uid;

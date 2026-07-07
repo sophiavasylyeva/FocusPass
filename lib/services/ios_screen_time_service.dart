@@ -4,17 +4,19 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'family_activity_picker_service.dart';
 
 class IOSScreenTimeService {
   static const String _earnedTimeKey = 'earned_time_';
   static const String _screenTimeRulesKey = 'screen_time_rules';
   static const String _restrictedAppsKey = 'restricted_apps';
-  
+
   // iOS Screen Time API channel
   static const MethodChannel _screenTimeChannel = MethodChannel('com.focuspass.screentime');
-  
+
   static Map<String, double> _screenTimeRules = {};
   static List<String> _restrictedApps = [];
+  static bool _usesFamilyActivityPicker = false;
   static double _earnedTimeToday = 0;
 
   /// Initialize iOS Screen Time integration
@@ -50,11 +52,21 @@ class IOSScreenTimeService {
   /// Set up app restrictions using iOS Screen Time API
   static Future<void> configureAppRestrictions() async {
     if (!await hasScreenTimePermission()) return;
-    
+
     try {
       final dailyLimitMs = _screenTimeRules['dailyLimit'] ?? (2 * 60 * 60 * 1000);
       final dailyLimitMinutes = (dailyLimitMs / (1000 * 60)).round();
-      
+
+      if (_usesFamilyActivityPicker) {
+        // Real Apple-picker selection already lives natively; just refresh
+        // the shield with the current total minutes.
+        await FamilyActivityPickerService.applyRestrictions(
+          dailyLimitMinutes: dailyLimitMinutes,
+          earnedTimeMinutes: _earnedTimeToday.round(),
+        );
+        return;
+      }
+
       await _screenTimeChannel.invokeMethod('configureRestrictions', {
         'apps': _restrictedApps,
         'dailyLimitMinutes': dailyLimitMinutes,
@@ -166,7 +178,8 @@ class IOSScreenTimeService {
         // Get restricted apps from child data
         final childData = childDoc.data();
         _restrictedApps = List<String>.from(childData['selectedApps'] ?? []);
-        
+        _usesFamilyActivityPicker = childData['usesFamilyActivityPicker'] ?? false;
+
         // Configure iOS restrictions
         await configureAppRestrictions();
       }

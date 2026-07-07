@@ -1,7 +1,9 @@
 import Flutter
 import UIKit
+import SwiftUI
+import FamilyControls
 
-@available(iOS 15.0, *)
+@available(iOS 16.0, *)
 class ScreenTimeMethodChannel: NSObject, FlutterPlugin {
     
     private let screenTimeHandler = ScreenTimeHandler()
@@ -37,7 +39,13 @@ class ScreenTimeMethodChannel: NSObject, FlutterPlugin {
             
         case "getInstalledApps":
             handleGetInstalledApps(result: result)
-            
+
+        case "showActivityPicker":
+            handleShowActivityPicker(result: result)
+
+        case "applyFamilyActivitySelectionRestrictions":
+            handleApplyFamilyActivitySelectionRestrictions(call: call, result: result)
+
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -114,5 +122,82 @@ class ScreenTimeMethodChannel: NSObject, FlutterPlugin {
                 result(apps)
             }
         }
+    }
+
+    private func handleShowActivityPicker(result: @escaping FlutterResult) {
+        // FamilyActivityPicker silently shows nothing selectable until the
+        // user has granted Family Controls authorization, so request it
+        // (triggering the system prompt on first use) before presenting.
+        Task {
+            let authorized = await screenTimeHandler.requestAuthorization()
+            guard authorized else {
+                DispatchQueue.main.async {
+                    result(FlutterError(
+                        code: "NOT_AUTHORIZED",
+                        message: "Screen Time authorization was not granted",
+                        details: nil
+                    ))
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                self.presentActivityPicker(result: result)
+            }
+        }
+    }
+
+    private func presentActivityPicker(result: @escaping FlutterResult) {
+        guard let root = UIApplication.shared.connectedScenes
+            .compactMap({ ($0 as? UIWindowScene)?.keyWindow })
+            .first?.rootViewController else {
+            result(FlutterError(code: "NO_ROOT_VC", message: "No root view controller available", details: nil))
+            return
+        }
+
+        var top = root
+        while let presented = top.presentedViewController {
+            top = presented
+        }
+
+        let existingSelection = screenTimeHandler.loadFamilyActivitySelection() ?? FamilyActivitySelection()
+        var didRespond = false
+
+        let pickerView = ActivityPickerView(
+            selection: existingSelection,
+            onDone: { [weak self] selection in
+                guard !didRespond else { return }
+                didRespond = true
+                self?.screenTimeHandler.saveFamilyActivitySelection(selection)
+                let counts = self?.screenTimeHandler.selectionCounts(selection) ?? (apps: 0, categories: 0)
+                top.presentedViewController?.dismiss(animated: true)
+                result(["appCount": counts.apps, "categoryCount": counts.categories])
+            },
+            onCancel: {
+                guard !didRespond else { return }
+                didRespond = true
+                top.presentedViewController?.dismiss(animated: true)
+                result(nil)
+            }
+        )
+
+        let hosting = UIHostingController(rootView: pickerView)
+        hosting.modalPresentationStyle = .formSheet
+        top.present(hosting, animated: true)
+    }
+
+    private func handleApplyFamilyActivitySelectionRestrictions(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let dailyLimitMinutes = args["dailyLimitMinutes"] as? Int,
+              let earnedTimeMinutes = args["earnedTimeMinutes"] as? Int else {
+            result(FlutterError(code: "INVALID_ARGUMENTS", message: "Invalid arguments for applyFamilyActivitySelectionRestrictions", details: nil))
+            return
+        }
+
+        screenTimeHandler.applyStoredFamilyActivitySelection(
+            dailyLimitMinutes: dailyLimitMinutes,
+            earnedTimeMinutes: earnedTimeMinutes
+        )
+
+        result(nil)
     }
 }
