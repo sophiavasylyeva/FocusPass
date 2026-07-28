@@ -43,3 +43,22 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase (Cloud Functions build output, CLI cache, and emulator state have
+# their own .gitignore under functions/ — these cover repo-root cases,
+# e.g. if the Firebase CLI is run from the repo root instead of functions/)
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+ui-debug.log
+firestore-debug.log
+*.emulator-export/
+
+# Never commit service-account keys or other Firebase secrets, anywhere
+# in the repo, regardless of filename convention used.
+serviceAccountKey.json
+*serviceAccount*.json
+*.pem
+.env
+.env.*
+!.env.example
