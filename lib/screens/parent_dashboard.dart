@@ -5,6 +5,7 @@ import '../utils/constants.dart';
 import '../models/productive_task.dart';
 import '../services/productive_task_service.dart';
 import '../widgets/approval_card.dart';
+import '../services/authentication_lifecycle_service.dart';
 import 'manage_children_screen.dart';
 import 'screen_time_rules.dart';
 import 'pin_setup_screen.dart';
@@ -24,12 +25,14 @@ class ParentDashboardScreen extends StatefulWidget {
 }
 
 class _ChildInboxData {
+  final String childId;
   final String name;
   final List<ProductiveTask> pending;
   final int earnedMinutesToday;
   final int capMinutes;
 
   _ChildInboxData({
+    required this.childId,
     required this.name,
     required this.pending,
     required this.earnedMinutesToday,
@@ -43,6 +46,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   bool _showNotification = true;
   bool _isLoading = true;
   List<_ChildInboxData> _childInboxes = [];
+  bool _isLoggingOut = false;
 
   @override
   void initState() {
@@ -64,32 +68,50 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
-      final childrenSnap =
-          await FirebaseFirestore.instance.collection('users').doc(uid).collection('children').get();
-      final names = childrenSnap.docs.map((d) => d.data()['name'] as String).toList();
+      final childrenSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('children')
+          .get();
 
       final allTasks = await _taskService.getAllSubmissionsForParent(uid);
       final today = DateTime.now();
 
       final inboxes = <_ChildInboxData>[];
-      for (final name in names) {
-        final childTasks = allTasks.where((t) => t.childName == name).toList();
+      for (final childDoc in childrenSnap.docs) {
+        
+        final childId = childDoc.id;
+        final name = childDoc.data()['name'] as String? ?? '';
+       
+        final childTasks = allTasks.where((t) {
+          if (t.childId.isNotEmpty) return t.childId == childId;
+          return t.childName == name;
+        }).toList();
         final pending = childTasks.where((t) => t.status == 'pending').toList();
         final earnedToday = childTasks
-            .where((t) =>
-                t.status == 'approved' &&
-                t.submittedAt.year == today.year &&
-                t.submittedAt.month == today.month &&
-                t.submittedAt.day == today.day)
+            .where(
+              (t) =>
+                  t.status == 'approved' &&
+                  t.submittedAt.year == today.year &&
+                  t.submittedAt.month == today.month &&
+                  t.submittedAt.day == today.day,
+            )
             .fold(0, (sum, t) => sum + (t.awardedMinutes ?? 0));
-        final capHours = await _taskService.getDailyCapHours(uid, name);
+        final capHours = await _taskService.getDailyCapHours(
+          parentUid: uid,
+          childId: childId,
+          childName: name,
+        );
 
-        inboxes.add(_ChildInboxData(
-          name: name,
-          pending: pending,
-          earnedMinutesToday: earnedToday,
-          capMinutes: (capHours * 60).round(),
-        ));
+        inboxes.add(
+          _ChildInboxData(
+            childId: childId,
+            name: name,
+            pending: pending,
+            earnedMinutesToday: earnedToday,
+            capMinutes: (capHours * 60).round(),
+          ),
+        );
       }
 
       if (mounted) {
@@ -111,6 +133,24 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     return r == 0 ? '${h}h' : '${h}h ${r}m';
   }
 
+  
+  Future<void> _handleLogout() async {
+    if (_isLoggingOut) return; // guard against double-tap
+    _isLoggingOut = true;
+    try {
+      await AuthenticationLifecycleService().logout();
+    } finally {
+      _isLoggingOut = false;
+    }
+
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
   void _goTo(Widget screen, {bool refreshOnReturn = false}) {
     final navigate = Navigator.push(
       context,
@@ -128,15 +168,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           icon: const Icon(Icons.arrow_back),
           color: Colors.white,
           tooltip: 'Back to Login',
-          onPressed: () {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const LoginScreen()),
-              (route) => false,
-            );
-          },
+          onPressed: _handleLogout,
         ),
-        title: const Text('Parent Dashboard', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Parent Dashboard',
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: kDarkGreen,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -168,7 +205,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     ),
                     GestureDetector(
                       onTap: () => setState(() => _showNotification = false),
-                      child: const Icon(Icons.close, color: Colors.black, size: 20),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.black,
+                        size: 20,
+                      ),
                     ),
                   ],
                 ),
@@ -189,17 +230,20 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             const SizedBox(height: 16),
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                  ? const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    )
                   : _childInboxes.isEmpty
-                      ? _buildEmptyChildrenState()
-                      : RefreshIndicator(
-                          onRefresh: _loadInboxData,
-                          child: ListView.separated(
-                            itemCount: _childInboxes.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 28),
-                            itemBuilder: (context, index) => _buildChildBlock(_childInboxes[index]),
-                          ),
-                        ),
+                  ? _buildEmptyChildrenState()
+                  : RefreshIndicator(
+                      onRefresh: _loadInboxData,
+                      child: ListView.separated(
+                        itemCount: _childInboxes.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 28),
+                        itemBuilder: (context, index) =>
+                            _buildChildBlock(_childInboxes[index]),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -219,12 +263,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               _NavAction(
                 icon: Icons.person,
                 label: 'Children',
-                onTap: () => _goTo(const ManageChildrenScreen(), refreshOnReturn: true),
+                onTap: () =>
+                    _goTo(const ManageChildrenScreen(), refreshOnReturn: true),
               ),
               _NavAction(
                 icon: Icons.timer,
                 label: 'Rules',
-                onTap: () => _goTo(const ScreenTimeRulesScreen(), refreshOnReturn: true),
+                onTap: () =>
+                    _goTo(const ScreenTimeRulesScreen(), refreshOnReturn: true),
               ),
               _NavAction(
                 icon: Icons.bar_chart,
@@ -252,17 +298,26 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           const SizedBox(height: 16),
           const Text(
             'No children added yet',
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 8),
           TextButton(
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const ManageChildrenScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const ManageChildrenScreen(),
+                ),
               ).then((_) => _loadInboxData());
             },
-            child: const Text('Add a child', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Add a child',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -276,11 +331,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         if (_childInboxes.length > 1) ...[
           Text(
             data.name,
-            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 10),
         ],
-        if (data.capMinutes > 0 && data.earnedMinutesToday >= data.capMinutes) ...[
+        if (data.capMinutes > 0 &&
+            data.earnedMinutesToday >= data.capMinutes) ...[
           _buildCapReachedBanner(data.name),
           const SizedBox(height: 12),
         ],
@@ -307,7 +367,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           Expanded(
             child: Text(
               '$name has run out of screen time for today.',
-              style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13),
+              style: const TextStyle(
+                color: Colors.orange,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
             ),
           ),
         ],
@@ -316,9 +380,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   }
 
   Widget _buildScreenTimeCard(_ChildInboxData data) {
-    final progress =
-        data.capMinutes > 0 ? (data.earnedMinutesToday / data.capMinutes).clamp(0.0, 1.0) : 0.0;
-    final remaining = (data.capMinutes - data.earnedMinutesToday).clamp(0, data.capMinutes);
+    final progress = data.capMinutes > 0
+        ? (data.earnedMinutesToday / data.capMinutes).clamp(0.0, 1.0)
+        : 0.0;
+    final remaining = (data.capMinutes - data.earnedMinutesToday).clamp(
+      0,
+      data.capMinutes,
+    );
 
     return Container(
       width: double.infinity,
@@ -350,6 +418,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => DailyCapSetupScreen(
+                        childId: data.childId,
                         childName: data.name,
                         currentHours: data.capMinutes / 60.0,
                       ),
@@ -360,10 +429,18 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: kDarkGreen,
                   side: const BorderSide(color: kAccentGreen),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
-                child: const Text('Change limit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Change limit',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ),
@@ -374,10 +451,17 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             children: [
               Text(
                 _fmt(data.earnedMinutesToday),
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black87),
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
               const SizedBox(width: 6),
-              Text('/ ${_fmt(data.capMinutes)}', style: TextStyle(color: Colors.grey[600], fontSize: 15)),
+              Text(
+                '/ ${_fmt(data.capMinutes)}',
+                style: TextStyle(color: Colors.grey[600], fontSize: 15),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -417,12 +501,23 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             children: [
               const Text(
                 'TO REVIEW',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.0, color: kDarkGreen),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.0,
+                  color: kDarkGreen,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
-                count > 0 ? '$count ${count == 1 ? 'activity' : 'activities'} waiting' : 'All caught up!',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                count > 0
+                    ? '$count ${count == 1 ? 'activity' : 'activities'} waiting'
+                    : 'All caught up!',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -436,40 +531,48 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         ),
         if (count > 0) ...[
           const SizedBox(height: 12),
-          ...data.pending.map((t) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: ApprovalCard(
-                  task: t,
-                  capMinutes: data.capMinutes,
-                  onApprove: (minutes) async {
-                    await _taskService.approveTask(t.id, t.childName, minutes);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('✅ Approved +${_fmt(minutes)} for ${t.childName}'),
-                          backgroundColor: Colors.green,
+          ...data.pending.map(
+            (t) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: ApprovalCard(
+                task: t,
+                capMinutes: data.capMinutes,
+                onApprove: (minutes) async {
+                  await _taskService.approveTask(t.id, t.childName, minutes);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          '✅ Approved +${_fmt(minutes)} for ${t.childName}',
                         ),
-                      );
-                    }
-                    _loadInboxData();
-                  },
-                  onReject: () async {
-                    await _taskService.rejectTask(t.id);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Activity declined')),
-                      );
-                    }
-                    _loadInboxData();
-                  },
-                ),
-              )),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                  _loadInboxData();
+                },
+                onReject: () async {
+                  await _taskService.rejectTask(t.id);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Activity declined')),
+                    );
+                  }
+                  _loadInboxData();
+                },
+              ),
+            ),
+          ),
         ],
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
-            onPressed: () => _goTo(const TaskApprovalScreen(), refreshOnReturn: true),
-            child: const Text('View full history', style: TextStyle(color: Colors.white70)),
+            onPressed: () =>
+                _goTo(const TaskApprovalScreen(), refreshOnReturn: true),
+            child: const Text(
+              'View full history',
+              style: TextStyle(color: Colors.white70),
+            ),
           ),
         ),
       ],
@@ -482,7 +585,11 @@ class _NavAction extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _NavAction({required this.icon, required this.label, required this.onTap});
+  const _NavAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -496,7 +603,10 @@ class _NavAction extends StatelessWidget {
             children: [
               Icon(icon, color: Colors.white, size: 22),
               const SizedBox(height: 4),
-              Text(label, style: const TextStyle(color: Colors.white, fontSize: 11)),
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+              ),
             ],
           ),
         ),

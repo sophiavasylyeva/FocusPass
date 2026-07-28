@@ -1,9 +1,11 @@
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/constants.dart';
+import '../utils/screen_time_rules_lookup.dart';
+import '../models/child_session.dart';
+import '../services/authentication_lifecycle_service.dart';
+import '../services/child_session_service.dart';
 import '../services/unified_screen_time_service.dart';
 import '../services/productive_task_service.dart';
 import '../models/productive_task.dart';
@@ -34,6 +36,8 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
   int _familyActivityAppCount = 0;
   int _familyActivityCategoryCount = 0;
 
+  bool _isLoggingOut = false;
+
   static const List<String> _tiers = ['XS', 'S', 'M', 'L', 'XL'];
 
   static const Map<String, IconData> _appIcons = {
@@ -61,8 +65,15 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
     return Container(
       width: 36,
       height: 36,
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
-      child: Icon(icon, color: appName == 'Snapchat' ? Colors.black : Colors.white, size: 20),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(
+        icon,
+        color: appName == 'Snapchat' ? Colors.black : Colors.white,
+        size: 20,
+      ),
     );
   }
 
@@ -75,25 +86,44 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
     _loadDailyCap();
   }
 
+  ChildSession get _session => ChildSessionService.requireSession();
+
+
+  Future<void> _handleLogout() async {
+    if (_isLoggingOut) return; // guard against double-tap
+    _isLoggingOut = true;
+    try {
+      await AuthenticationLifecycleService().logout();
+    } finally {
+      _isLoggingOut = false;
+    }
+
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
   Future<void> _fetchChildData() async {
     try {
-      final query = await FirebaseFirestore.instance
-          .collectionGroup('children')
-          .where('name', isEqualTo: widget.childName)
-          .get();
+      final childDoc = await _session.childRef().get();
 
-      if (query.docs.isNotEmpty) {
-        final data = query.docs.first.data();
+      if (childDoc.exists) {
+        final data = childDoc.data()!;
         setState(() {
           _selectedApps = List<String>.from(data['selectedApps'] ?? []);
           _usesFamilyActivityPicker = data['usesFamilyActivityPicker'] ?? false;
-          _familyActivityAppCount = (data['familyActivityAppCount'] as num?)?.toInt() ?? 0;
-          _familyActivityCategoryCount = (data['familyActivityCategoryCount'] as num?)?.toInt() ?? 0;
+          _familyActivityAppCount =
+              (data['familyActivityAppCount'] as num?)?.toInt() ?? 0;
+          _familyActivityCategoryCount =
+              (data['familyActivityCategoryCount'] as num?)?.toInt() ?? 0;
           _isLoading = false;
         });
       } else {
         setState(() => _isLoading = false);
-        print('❌ Child not found');
+        print('❌ Child not found at ${_session.childRef().path}');
       }
     } catch (e) {
       print('❌ Error fetching child data: $e');
@@ -124,7 +154,10 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
   Future<void> _loadTodaySubmissions() async {
     setState(() => _tasksLoading = true);
     try {
-      final all = await _taskService.getSubmissionsForChild(widget.childName);
+      final all = await _taskService.getSubmissionsForChild(
+        parentUid: _session.parentUid,
+        childId: _session.childId,
+      );
       final today = DateTime.now();
       final todayTasks = all.where((t) {
         return t.submittedAt.year == today.year &&
@@ -143,13 +176,11 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
 
   Future<void> _loadDailyCap() async {
     try {
-      final query = await FirebaseFirestore.instance
-          .collectionGroup('children')
-          .where('name', isEqualTo: widget.childName)
-          .get();
-      if (query.docs.isEmpty) return;
-      final parentUid = query.docs.first.reference.parent.parent!.id;
-      final hours = await _taskService.getDailyCapHours(parentUid, widget.childName);
+      final hours = await _taskService.getDailyCapHours(
+        parentUid: _session.parentUid,
+        childId: _session.childId,
+        childName: _session.displayName,
+      );
       if (mounted) setState(() => _capMinutes = (hours * 60).round());
     } catch (e) {
       print('❌ Error loading daily cap: $e');
@@ -160,7 +191,8 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
       .where((t) => t.status == 'approved')
       .fold(0, (sum, t) => sum + (t.awardedMinutes ?? 0));
 
-  int get _pendingCount => _todaySubmissions.where((t) => t.status == 'pending').length;
+  int get _pendingCount =>
+      _todaySubmissions.where((t) => t.status == 'pending').length;
 
   List<ProductiveTaskPreset> get _filteredPresets {
     if (_tierFilter == 'ALL') return kProductivePresets;
@@ -178,15 +210,12 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
           icon: const Icon(Icons.arrow_back),
           color: Colors.white,
           tooltip: 'Back to Login',
-          onPressed: () {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const LoginScreen()),
-              (route) => false,
-            );
-          },
+          onPressed: _handleLogout,
         ),
-        title: const Text('Child Dashboard', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Child Dashboard',
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: kDarkGreen,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
@@ -234,7 +263,11 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
                   const SizedBox(height: 28),
                   const Text(
                     'Screen Time Management:',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _buildScreenTimeWidget(),
@@ -246,7 +279,9 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
   }
 
   Widget _buildEarnedTodayCard() {
-    final progress = _capMinutes > 0 ? (_earnedMinutesToday / _capMinutes).clamp(0.0, 1.0) : 0.0;
+    final progress = _capMinutes > 0
+        ? (_earnedMinutesToday / _capMinutes).clamp(0.0, 1.0)
+        : 0.0;
     final remaining = (_capMinutes - _earnedMinutesToday).clamp(0, _capMinutes);
 
     return Container(
@@ -261,7 +296,12 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
         children: [
           const Text(
             'EARNED TODAY',
-            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
           ),
           const SizedBox(height: 8),
           Row(
@@ -270,7 +310,11 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
             children: [
               Text(
                 _formatTime(_earnedMinutesToday),
-                style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(width: 6),
               Text(
@@ -300,7 +344,11 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
             const SizedBox(height: 8),
             Text(
               '$_pendingCount ${_pendingCount == 1 ? 'activity' : 'activities'} waiting for your parent',
-              style: const TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                color: Colors.orangeAccent,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ],
@@ -319,14 +367,16 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
             onTap: () => setState(() => _tierFilter = 'ALL'),
           ),
           const SizedBox(width: 8),
-          ..._tiers.map((t) => Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: _TierChip(
-                  label: '${kTierMinutes[t]} min',
-                  active: _tierFilter == t,
-                  onTap: () => setState(() => _tierFilter = t),
-                ),
-              )),
+          ..._tiers.map(
+            (t) => Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _TierChip(
+                label: '${kTierMinutes[t]} min',
+                active: _tierFilter == t,
+                onTap: () => setState(() => _tierFilter = t),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -336,10 +386,12 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
     final presets = _filteredPresets;
     return Column(
       children: presets
-          .map((p) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _PresetCard(preset: p, onTap: () => _submitPreset(p)),
-              ))
+          .map(
+            (p) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _PresetCard(preset: p, onTap: () => _submitPreset(p)),
+            ),
+          )
           .toList(),
     );
   }
@@ -359,8 +411,12 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
   }
 
   Widget _buildSubmissionsSection() {
-    final pending = _todaySubmissions.where((s) => s.status == 'pending').toList();
-    final resolved = _todaySubmissions.where((s) => s.status != 'pending').toList();
+    final pending = _todaySubmissions
+        .where((s) => s.status == 'pending')
+        .toList();
+    final resolved = _todaySubmissions
+        .where((s) => s.status != 'pending')
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -368,25 +424,39 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
         if (pending.isNotEmpty) ...[
           const Text(
             'WAITING FOR PARENT',
-            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
           ),
           const SizedBox(height: 8),
-          ...pending.map((s) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _SubmissionRow(task: s),
-              )),
+          ...pending.map(
+            (s) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _SubmissionRow(task: s),
+            ),
+          ),
           const SizedBox(height: 16),
         ],
         if (resolved.isNotEmpty) ...[
           const Text(
             'RESOLVED TODAY',
-            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
           ),
           const SizedBox(height: 8),
-          ...resolved.map((s) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _SubmissionRow(task: s),
-              )),
+          ...resolved.map(
+            (s) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _SubmissionRow(task: s),
+            ),
+          ),
         ],
       ],
     );
@@ -423,7 +493,9 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: kAccentGreen,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             child: const Text('Send to parent'),
           ),
@@ -432,11 +504,11 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
     );
     if (confirmed != true) return;
 
-    final parentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final task = ProductiveTask(
-      id: ProductiveTaskService.generateTaskId(widget.childName),
-      childName: widget.childName,
-      parentUid: parentUid,
+      id: ProductiveTaskService.generateTaskId(_session.childId),
+      childId: _session.childId,
+      childName: _session.displayName,
+      parentUid: _session.parentUid,
       title: preset.title,
       emoji: preset.emoji,
       tier: preset.tier,
@@ -460,7 +532,10 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error submitting task: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Error submitting task: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -477,11 +552,11 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
     );
     if (result == null) return;
 
-    final parentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final task = ProductiveTask(
-      id: ProductiveTaskService.generateTaskId(widget.childName),
-      childName: widget.childName,
-      parentUid: parentUid,
+      id: ProductiveTaskService.generateTaskId(_session.childId),
+      childId: _session.childId,
+      childName: _session.displayName,
+      parentUid: _session.parentUid,
       title: result['title']!,
       emoji: '🌱',
       tier: 'S',
@@ -506,7 +581,10 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error submitting task: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Error submitting task: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -530,7 +608,11 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
             const SizedBox(height: 8),
             const Text(
               'Screen Time Monitoring Disabled',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -543,7 +625,9 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(UnifiedScreenTimeService.getPermissionInstructions()),
+                    content: Text(
+                      UnifiedScreenTimeService.getPermissionInstructions(),
+                    ),
                   ),
                 );
               },
@@ -592,8 +676,17 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(app, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      const Text('No usage data', style: TextStyle(color: Colors.grey)),
+                      Text(
+                        app,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const Text(
+                        'No usage data',
+                        style: TextStyle(color: Colors.grey),
+                      ),
                     ],
                   ),
                 ),
@@ -609,7 +702,9 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
 
         final usedMinutes = (usedTimeMs / (1000 * 60)).round();
         final remainingMinutes = (remainingTimeMs / (1000 * 60)).round();
-        final progress = dailyLimitMs > 0 ? (usedTimeMs / dailyLimitMs).clamp(0.0, 1.0) : 0.0;
+        final progress = dailyLimitMs > 0
+            ? (usedTimeMs / dailyLimitMs).clamp(0.0, 1.0)
+            : 0.0;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -638,14 +733,21 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
                   ),
                   if (isBlocked)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.red,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Text(
                         'BLOCKED',
-                        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                 ],
@@ -655,17 +757,24 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
                 value: progress,
                 backgroundColor: Colors.grey[300],
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  isBlocked ? Colors.red : (progress > 0.8 ? Colors.orange : kAccentGreen),
+                  isBlocked
+                      ? Colors.red
+                      : (progress > 0.8 ? Colors.orange : kAccentGreen),
                 ),
               ),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Used: ${_formatTime(usedMinutes)}', style: TextStyle(color: Colors.grey[600])),
+                  Text(
+                    'Used: ${_formatTime(usedMinutes)}',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
                   Text(
                     'Remaining: ${_formatTime(remainingMinutes)}',
-                    style: TextStyle(color: isBlocked ? Colors.red : Colors.grey[600]),
+                    style: TextStyle(
+                      color: isBlocked ? Colors.red : Colors.grey[600],
+                    ),
                   ),
                 ],
               ),
@@ -732,7 +841,11 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
                   '$_familyActivityAppCount ${_familyActivityAppCount == 1 ? 'app' : 'apps'} and '
                   '$_familyActivityCategoryCount ${_familyActivityCategoryCount == 1 ? 'category' : 'categories'} '
                   'are blocked once your earned screen time runs out.',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.3),
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 13,
+                    height: 1.3,
+                  ),
                 ),
               ],
             ),
@@ -785,15 +898,7 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
     try {
       final usageStats = await UnifiedScreenTimeService.getCurrentUsageStats();
 
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return usageStats;
-
-      final childDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('children')
-          .doc(widget.childName)
-          .get();
+      final childDoc = await _session.childRef().get();
 
       if (!childDoc.exists) return usageStats;
 
@@ -810,8 +915,9 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
           final usedTimeMs = stats['usedTime'] ?? 0;
           final earnedTimeMs = stats['earnedTime'] ?? 0;
 
-          final remainingTimeMs =
-              (firestoreLimitMs + earnedTimeMs - usedTimeMs).clamp(0, double.infinity).toInt();
+          final remainingTimeMs = (firestoreLimitMs + earnedTimeMs - usedTimeMs)
+              .clamp(0, double.infinity)
+              .toInt();
           final totalAvailableTime = firestoreLimitMs + earnedTimeMs;
           final isBlocked = usedTimeMs >= totalAvailableTime;
 
@@ -835,15 +941,7 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
 
   Future<bool> _checkIfOverrideUsedToday() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return false;
-
-      final childDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('children')
-          .doc(widget.childName)
-          .get();
+      final childDoc = await _session.childRef().get();
 
       if (!childDoc.exists) return false;
 
@@ -870,7 +968,10 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
               const SizedBox(width: 8),
               Text(
                 'Daily Limit Reached',
-                style: TextStyle(color: kDarkGreen, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: kDarkGreen,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -879,17 +980,27 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
             style: const TextStyle(fontSize: 16),
           ),
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           actions: [
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: const Text('OK', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'OK',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
           actionsAlignment: MainAxisAlignment.center,
@@ -910,7 +1021,10 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
               const SizedBox(width: 8),
               Text(
                 'Come back tomorrow!',
-                style: TextStyle(color: kDarkGreen, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: kDarkGreen,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -919,17 +1033,27 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
             style: TextStyle(fontSize: 16),
           ),
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           actions: [
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: kAccentGreen,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: const Text('OK', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'OK',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
           actionsAlignment: MainAxisAlignment.center,
@@ -944,7 +1068,11 @@ class _TierChip extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
 
-  const _TierChip({required this.label, required this.active, required this.onTap});
+  const _TierChip({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1003,7 +1131,10 @@ class _PresetCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Center(
-                  child: Text(preset.emoji, style: const TextStyle(fontSize: 22)),
+                  child: Text(
+                    preset.emoji,
+                    style: const TextStyle(fontSize: 22),
+                  ),
                 ),
               ),
               const SizedBox(width: 14),
@@ -1013,7 +1144,10 @@ class _PresetCard extends StatelessWidget {
                   children: [
                     Text(
                       preset.title,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -1118,7 +1252,11 @@ class _SubmissionRow extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 statusLabel,
-                style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 13),
+                style: TextStyle(
+                  color: statusColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
             ],
           ),
@@ -1163,7 +1301,9 @@ class _CustomActivityDialogState extends State<_CustomActivityDialog> {
             maxLength: 80,
             decoration: InputDecoration(
               hintText: 'What did you do?',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               counterText: '',
             ),
             onChanged: (_) => setState(() {}),
@@ -1175,7 +1315,9 @@ class _CustomActivityDialogState extends State<_CustomActivityDialog> {
             maxLines: 3,
             decoration: InputDecoration(
               hintText: 'Add a quick note (optional)',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               counterText: '',
             ),
           ),
@@ -1189,14 +1331,16 @@ class _CustomActivityDialogState extends State<_CustomActivityDialog> {
         ElevatedButton(
           onPressed: canSubmit
               ? () => Navigator.pop(context, {
-                    'title': _titleController.text.trim(),
-                    'note': _noteController.text.trim(),
-                  })
+                  'title': _titleController.text.trim(),
+                  'note': _noteController.text.trim(),
+                })
               : null,
           style: ElevatedButton.styleFrom(
             backgroundColor: kAccentGreen,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           child: const Text('Send to Parent'),
         ),
@@ -1205,19 +1349,24 @@ class _CustomActivityDialogState extends State<_CustomActivityDialog> {
   }
 }
 
-// ─── Parental PIN Override Dialog (unchanged) ────────────────────────────────
+
 
 class _ParentalPinOverrideDialog extends StatefulWidget {
   final String childName;
   final VoidCallback? onOverrideApplied;
 
-  const _ParentalPinOverrideDialog({required this.childName, this.onOverrideApplied});
+  const _ParentalPinOverrideDialog({
+    required this.childName,
+    this.onOverrideApplied,
+  });
 
   @override
-  State<_ParentalPinOverrideDialog> createState() => _ParentalPinOverrideDialogState();
+  State<_ParentalPinOverrideDialog> createState() =>
+      _ParentalPinOverrideDialogState();
 }
 
-class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> {
+class _ParentalPinOverrideDialogState
+    extends State<_ParentalPinOverrideDialog> {
   final TextEditingController _pinController = TextEditingController();
   bool _isLoading = false;
   String _errorMessage = '';
@@ -1233,7 +1382,11 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
     return AlertDialog(
       title: Row(
         children: [
-          const Icon(Icons.admin_panel_settings, color: Colors.orange, size: 28),
+          const Icon(
+            Icons.admin_panel_settings,
+            color: Colors.orange,
+            size: 28,
+          ),
           const SizedBox(width: 8),
           Text(
             'Parental Override',
@@ -1259,7 +1412,9 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
               labelText: 'Parental PIN',
               hintText: 'Enter 5-digit PIN',
               counterText: '',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
               prefixIcon: const Icon(Icons.lock),
               errorText: _errorMessage.isEmpty ? null : _errorMessage,
             ),
@@ -1300,15 +1455,23 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
             backgroundColor: Colors.orange,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           child: _isLoading
               ? const SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
                 )
-              : const Text('Override', style: TextStyle(fontWeight: FontWeight.bold)),
+              : const Text(
+                  'Override',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
         ),
       ],
     );
@@ -1352,10 +1515,12 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
 
   Future<bool> _applyParentalOverride(String pin) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return false;
+      final session = ChildSessionService.requireSession();
 
-      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(session.parentUid)
+          .get();
       if (!doc.exists) return false;
 
       final storedPin = doc.data()?['pin'];
@@ -1371,15 +1536,9 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
 
   Future<void> _addBonusTimeToAllApps(int bonusMinutes) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      final childDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('children')
-          .doc(widget.childName)
-          .get();
+      final session = ChildSessionService.requireSession();
+      final childRef = session.childRef();
+      final childDoc = await childRef.get();
 
       if (!childDoc.exists) return;
 
@@ -1405,12 +1564,10 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
       });
 
       final today = DateTime.now().toIso8601String().split('T')[0];
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('children')
-          .doc(widget.childName)
-          .update({'appLimits': updatedLimits, 'lastParentalOverride': today});
+      await childRef.update({
+        'appLimits': updatedLimits,
+        'lastParentalOverride': today,
+      });
 
       await UnifiedScreenTimeService.updateScreenTimeRules();
     } catch (e) {
@@ -1431,7 +1588,10 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
               const SizedBox(width: 8),
               Text(
                 'Override Applied!',
-                style: TextStyle(color: kDarkGreen, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: kDarkGreen,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -1440,7 +1600,9 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
             style: const TextStyle(fontSize: 16),
           ),
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           actions: [
             ElevatedButton(
               onPressed: () {
@@ -1450,10 +1612,18 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
               style: ElevatedButton.styleFrom(
                 backgroundColor: kAccentGreen,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: const Text('OK', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'OK',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
           actionsAlignment: MainAxisAlignment.center,
@@ -1462,16 +1632,17 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
     );
   }
 
-  Future<void> _createInitialAppLimits(Map<String, dynamic> childData, int bonusMinutes) async {
+  Future<void> _createInitialAppLimits(
+    Map<String, dynamic> childData,
+    int bonusMinutes,
+  ) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
+      final session = ChildSessionService.requireSession();
       final selectedApps = List<String>.from(childData['selectedApps'] ?? []);
 
       final settingsDoc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(session.parentUid)
           .collection('settings')
           .doc('screenTimeRules')
           .get();
@@ -1481,11 +1652,21 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
         final settingsData = settingsDoc.data()!;
         final applySameForAll = settingsData['applySameForAll'] ?? false;
         if (applySameForAll) {
-          baseLimitHours = (settingsData['unifiedRules']?['limit'] ?? 1.0).toDouble();
+          baseLimitHours = (settingsData['unifiedRules']?['limit'] ?? 1.0)
+              .toDouble();
         } else {
-          final childrenData = settingsData['children'] as Map<String, dynamic>? ?? {};
-          if (childrenData.containsKey(widget.childName)) {
-            baseLimitHours = (childrenData[widget.childName]['limit'] ?? 1.0).toDouble();
+          // Prefer children[childId], fall back to the legacy
+          // children[displayName] entry — see resolveChildRuleEntry.
+          final childrenData =
+              settingsData['children'] as Map<String, dynamic>? ?? {};
+          final entry = resolveChildRuleEntry(
+            childrenData: childrenData,
+            parentUid: session.parentUid,
+            childId: session.childId,
+            displayName: session.displayName,
+          );
+          if (entry != null) {
+            baseLimitHours = (entry['limit'] ?? 1.0).toDouble();
           }
         }
       }
@@ -1498,12 +1679,10 @@ class _ParentalPinOverrideDialogState extends State<_ParentalPinOverrideDialog> 
       }
 
       final today = DateTime.now().toIso8601String().split('T')[0];
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('children')
-          .doc(widget.childName)
-          .update({'appLimits': appLimits, 'lastParentalOverride': today});
+      await session.childRef().update({
+        'appLimits': appLimits,
+        'lastParentalOverride': today,
+      });
     } catch (e) {
       print('ParentalOverride: Error creating initial app limits - $e');
       rethrow;

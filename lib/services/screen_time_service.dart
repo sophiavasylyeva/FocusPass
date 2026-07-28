@@ -1122,7 +1122,8 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../utils/screen_time_rules_lookup.dart';
+import 'child_session_service.dart';
 import 'native_usage_stats_service.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -1172,11 +1173,16 @@ class ScreenTimeService {
     // This will override any local rules with parent's settings
     try {
       await _syncWithFirestore();
-      print('ScreenTimeService: Firestore sync completed - rules updated from parent account');
+      print(
+        'ScreenTimeService: Firestore sync completed - rules updated from parent account',
+      );
     } catch (e) {
-      print('ScreenTimeService: Firestore sync failed, using stored or default rules: $e');
+      print(
+        'ScreenTimeService: Firestore sync failed, using stored or default rules: $e',
+      );
       // If sync fails and no stored rules, set defaults
-      if (_screenTimeRules.isEmpty || !_screenTimeRules.containsKey('dailyLimit')) {
+      if (_screenTimeRules.isEmpty ||
+          !_screenTimeRules.containsKey('dailyLimit')) {
         _setDefaultRulesForTesting();
       }
     }
@@ -1199,10 +1205,20 @@ class ScreenTimeService {
   /// Set default rules for testing when Firebase is unavailable
   static void _setDefaultRulesForTesting() {
     // Default to 1 hour daily limit to match parent's unified settings
-    _screenTimeRules['dailyLimit'] = 1.0 * 60 * 60 * 1000; // 1 hour in milliseconds
-    _screenTimeRules['ratio'] = 3.0; // 3x ratio (5 min learning = 15 min screen time)
-    _restrictedApps = ['com.google.android.youtube', 'com.instagram.android', 'com.zhiliaoapp.musically', 'com.snapchat.android', 'com.twitter.android'];
-    print('ScreenTimeService: Default testing rules set - 1 hour limit, 3x ratio');
+    _screenTimeRules['dailyLimit'] =
+        1.0 * 60 * 60 * 1000; // 1 hour in milliseconds
+    _screenTimeRules['ratio'] =
+        3.0; // 3x ratio (5 min learning = 15 min screen time)
+    _restrictedApps = [
+      'com.google.android.youtube',
+      'com.instagram.android',
+      'com.zhiliaoapp.musically',
+      'com.snapchat.android',
+      'com.twitter.android',
+    ];
+    print(
+      'ScreenTimeService: Default testing rules set - 1 hour limit, 3x ratio',
+    );
   }
 
   /// Map app display names to package names
@@ -1230,9 +1246,14 @@ class ScreenTimeService {
     try {
       final endTime = DateTime.now();
       final startTime = endTime.subtract(const Duration(days: 1));
-      final stats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
+      final stats = await NativeUsageStatsService.queryUsageStats(
+        startTime,
+        endTime,
+      );
 
-      print('ScreenTimeService: Permission check - found ${stats.length} usage stats');
+      print(
+        'ScreenTimeService: Permission check - found ${stats.length} usage stats',
+      );
 
       // More permissive check - if we can query stats at all, consider permission granted
       if (stats.isNotEmpty) {
@@ -1240,7 +1261,9 @@ class ScreenTimeService {
         return true;
       }
 
-      print('ScreenTimeService: No usage stats found - permission likely denied');
+      print(
+        'ScreenTimeService: No usage stats found - permission likely denied',
+      );
       return false;
     } catch (e) {
       print('ScreenTimeService: Usage stats permission check failed: $e');
@@ -1290,8 +1313,12 @@ class ScreenTimeService {
       if (usageJson != null) {
         try {
           final Map<String, dynamic> decoded = json.decode(usageJson);
-          _dailyUsage = decoded.map((key, value) => MapEntry(key, value as int));
-          print('ScreenTimeService: Loaded daily usage for $_currentChildName: $_dailyUsage');
+          _dailyUsage = decoded.map(
+            (key, value) => MapEntry(key, value as int),
+          );
+          print(
+            'ScreenTimeService: Loaded daily usage for $_currentChildName: $_dailyUsage',
+          );
         } catch (e) {
           print('ScreenTimeService: Error loading daily usage, resetting: $e');
           await _resetDailyUsage();
@@ -1305,8 +1332,12 @@ class ScreenTimeService {
       if (trackingJson != null) {
         try {
           final Map<String, dynamic> decoded = json.decode(trackingJson);
-          _trackingStartTimes = decoded.map((key, value) => MapEntry(key, value as int));
-          print('ScreenTimeService: Loaded tracking start times for $_currentChildName');
+          _trackingStartTimes = decoded.map(
+            (key, value) => MapEntry(key, value as int),
+          );
+          print(
+            'ScreenTimeService: Loaded tracking start times for $_currentChildName',
+          );
         } catch (e) {
           print('ScreenTimeService: Error loading tracking start times: $e');
           _trackingStartTimes.clear();
@@ -1318,7 +1349,9 @@ class ScreenTimeService {
       final blockedList = prefs.getStringList(blockedKey);
       if (blockedList != null) {
         _blockedApps = blockedList.toSet();
-        print('ScreenTimeService: Loaded blocked apps for $_currentChildName: $_blockedApps');
+        print(
+          'ScreenTimeService: Loaded blocked apps for $_currentChildName: $_blockedApps',
+        );
       }
 
       // Validate loaded data
@@ -1330,7 +1363,9 @@ class ScreenTimeService {
     final rulesJson = prefs.getString(rulesKey);
     if (rulesJson != null) {
       final Map<String, dynamic> decoded = json.decode(rulesJson);
-      _screenTimeRules = decoded.map((key, value) => MapEntry(key, (value as num).toDouble()));
+      _screenTimeRules = decoded.map(
+        (key, value) => MapEntry(key, (value as num).toDouble()),
+      );
     }
 
     // Load restricted apps for this child
@@ -1353,8 +1388,11 @@ class ScreenTimeService {
     // Check for suspicious usage values
     for (final entry in _dailyUsage.entries) {
       final usageMinutes = entry.value / (1000 * 60);
-      if (usageMinutes > 1440) { // More than 24 hours
-        print('ScreenTimeService: Detected invalid usage for ${entry.key}: ${usageMinutes.toStringAsFixed(1)} minutes - forcing reset');
+      if (usageMinutes > 1440) {
+        // More than 24 hours
+        print(
+          'ScreenTimeService: Detected invalid usage for ${entry.key}: ${usageMinutes.toStringAsFixed(1)} minutes - forcing reset',
+        );
         needsReset = true;
         break;
       }
@@ -1365,24 +1403,22 @@ class ScreenTimeService {
     }
   }
 
-  /// Sync with Firestore to get latest rules and restrictions
+  /// Sync with Firestore to get latest rules and restrictions. Resolves
+  /// the current child via the stable ChildSession (parentUid + childId)
+  /// rather than a name-based collectionGroup scan.
   static Future<void> _syncWithFirestore() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      final session =
+          ChildSessionService.currentSession ??
+          await ChildSessionService.restoreSession();
+      if (session == null) return;
 
-      final childName = await _getCurrentChildName();
-      if (childName == null) return;
+      final childName = session.displayName;
 
-      // Get screen time rules from parent's settings
-      final parentQuery = await FirebaseFirestore.instance
-          .collectionGroup('children')
-          .where('name', isEqualTo: childName)
-          .get();
+      final childDoc = await session.childRef().get();
 
-      if (parentQuery.docs.isNotEmpty) {
-        final childDoc = parentQuery.docs.first;
-        final parentUid = childDoc.reference.parent.parent!.id;
+      if (childDoc.exists) {
+        final parentUid = session.parentUid;
 
         // Get parent's screen time rules
         final rulesDoc = await FirebaseFirestore.instance
@@ -1395,19 +1431,34 @@ class ScreenTimeService {
         if (rulesDoc.exists) {
           final rulesData = rulesDoc.data()!;
           double dailyLimit = 1.0; // default to 1 hour
-          double ratio = 3.0; // default 3x (5 min learning = 15 min screen time)
+          double ratio =
+              3.0; // default 3x (5 min learning = 15 min screen time)
 
           if (rulesData['applySameForAll'] == true) {
             // Use unified rules for all children
-            dailyLimit = (rulesData['unifiedRules']?['limit'] ?? 1.0).toDouble();
+            dailyLimit = (rulesData['unifiedRules']?['limit'] ?? 1.0)
+                .toDouble();
             ratio = (rulesData['unifiedRules']?['ratio'] ?? 3.0).toDouble();
-            print('ScreenTimeService: Using unified rules - Limit: ${dailyLimit}h, Ratio: ${ratio}x');
+            print(
+              'ScreenTimeService: Using unified rules - Limit: ${dailyLimit}h, Ratio: ${ratio}x',
+            );
           } else {
-            // Use individual rules for this child
-            final childrenRules = rulesData['children'] as Map<String, dynamic>? ?? {};
-            dailyLimit = (childrenRules[childName]?['limit'] ?? 1.0).toDouble();
-            ratio = (childrenRules[childName]?['ratio'] ?? 3.0).toDouble();
-            print('ScreenTimeService: Using individual rules for $childName - Limit: ${dailyLimit}h, Ratio: ${ratio}x');
+            // Use individual rules for this child. Prefer
+            // children[childId], falling back to the legacy
+            // children[displayName] entry — see resolveChildRuleEntry.
+            final childrenRules =
+                rulesData['children'] as Map<String, dynamic>? ?? {};
+            final entry = resolveChildRuleEntry(
+              childrenData: childrenRules,
+              parentUid: parentUid,
+              childId: session.childId,
+              displayName: childName,
+            );
+            dailyLimit = (entry?['limit'] ?? 1.0).toDouble();
+            ratio = (entry?['ratio'] ?? 3.0).toDouble();
+            print(
+              'ScreenTimeService: Using individual rules for $childName - Limit: ${dailyLimit}h, Ratio: ${ratio}x',
+            );
           }
 
           // Convert hours to milliseconds and store ratio
@@ -1415,19 +1466,30 @@ class ScreenTimeService {
           _screenTimeRules['ratio'] = ratio;
         } else {
           // No rules document exists, use defaults
-          print('ScreenTimeService: No rules found, using defaults - 1 hour limit, 3x ratio');
+          print(
+            'ScreenTimeService: No rules found, using defaults - 1 hour limit, 3x ratio',
+          );
           _screenTimeRules['dailyLimit'] = 1.0 * 60 * 60 * 1000;
           _screenTimeRules['ratio'] = 3.0;
         }
 
         // Get restricted apps from child data
         final childData = childDoc.data();
-        final selectedAppNames = List<String>.from(childData['selectedApps'] ?? []);
+        final selectedAppNames = List<String>.from(
+          childData?['selectedApps'] ?? [],
+        );
         final Set<String> packagesToRestrict = {};
         final Map<String, String> appPackageMap = _getAppPackageMap();
 
         // Check if any web-based apps are selected
-        const webBasedApps = {'YouTube', 'TikTok', 'Netflix', 'Instagram', 'X (Twitter)', 'Twitter'};
+        const webBasedApps = {
+          'YouTube',
+          'TikTok',
+          'Netflix',
+          'Instagram',
+          'X (Twitter)',
+          'Twitter',
+        };
         bool shouldBlockBrowsers = false;
 
         for (final appName in selectedAppNames) {
@@ -1445,9 +1507,13 @@ class ScreenTimeService {
 
         // Add browsers to prevent web access loophole
         if (shouldBlockBrowsers) {
-          print('ScreenTimeService: Adding browsers to block web access loophole');
+          print(
+            'ScreenTimeService: Adding browsers to block web access loophole',
+          );
           packagesToRestrict.add('com.android.chrome');
-          packagesToRestrict.add('com.sec.android.app.sbrowser'); // Samsung Internet
+          packagesToRestrict.add(
+            'com.sec.android.app.sbrowser',
+          ); // Samsung Internet
           packagesToRestrict.add('org.mozilla.firefox');
           packagesToRestrict.add('com.microsoft.emmx'); // Edge
           packagesToRestrict.add('com.opera.browser');
@@ -1456,14 +1522,18 @@ class ScreenTimeService {
         _restrictedApps = packagesToRestrict.toList();
 
         print('ScreenTimeService: Loaded rules for $childName:');
-        print('  Daily limit: ${_screenTimeRules['dailyLimit']! / (60 * 60 * 1000)} hours');
+        print(
+          '  Daily limit: ${_screenTimeRules['dailyLimit']! / (60 * 60 * 1000)} hours',
+        );
         print('  Ratio: ${_screenTimeRules['ratio']}x');
         print('  Restricted apps: $_restrictedApps');
 
         await _saveToPreferences();
       } else {
         // Child not found in any parent's collection, use defaults
-        print('ScreenTimeService: Child $childName not found in parent records, using defaults');
+        print(
+          'ScreenTimeService: Child $childName not found in parent records, using defaults',
+        );
         _screenTimeRules['dailyLimit'] = 1.0 * 60 * 60 * 1000;
         _screenTimeRules['ratio'] = 3.0;
       }
@@ -1505,7 +1575,9 @@ class ScreenTimeService {
   /// Start monitoring app usage
   static void _startMonitoring() {
     _monitoringTimer?.cancel();
-    _monitoringTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+    _monitoringTimer = Timer.periodic(const Duration(seconds: 10), (
+      timer,
+    ) async {
       await _checkCurrentAppUsage();
       _checkForDayChange();
     });
@@ -1519,7 +1591,9 @@ class ScreenTimeService {
     final nextMidnight = DateTime(now.year, now.month, now.day + 1);
     final timeUntilMidnight = nextMidnight.difference(now);
 
-    print('ScreenTimeService: Scheduling reset in ${timeUntilMidnight.inHours}h ${timeUntilMidnight.inMinutes % 60}m');
+    print(
+      'ScreenTimeService: Scheduling reset in ${timeUntilMidnight.inHours}h ${timeUntilMidnight.inMinutes % 60}m',
+    );
 
     _resetTimer = Timer(timeUntilMidnight, () async {
       print('ScreenTimeService: Midnight reset triggered');
@@ -1565,13 +1639,17 @@ class ScreenTimeService {
       final endTime = DateTime.now();
       final startTime = DateTime(endTime.year, endTime.month, endTime.day);
 
-      final List<UsageStatInfo> usageStats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
+      final List<UsageStatInfo> usageStats =
+          await NativeUsageStatsService.queryUsageStats(startTime, endTime);
 
       // Check if educational tasks are completed
       final hasCompletedTasks = _earnedTimeToday > 0;
       final ratio = _screenTimeRules['ratio'] ?? 3.0;
-      final sessionTimeMs = hasCompletedTasks ? (5 * ratio * 60 * 1000) : 0; // 5 min learning * ratio
-      final dailyLimitMs = _screenTimeRules['dailyLimit'] ?? (1 * 60 * 60 * 1000);
+      final sessionTimeMs = hasCompletedTasks
+          ? (5 * ratio * 60 * 1000)
+          : 0; // 5 min learning * ratio
+      final dailyLimitMs =
+          _screenTimeRules['dailyLimit'] ?? (1 * 60 * 60 * 1000);
 
       bool hasChanges = false;
 
@@ -1585,7 +1663,9 @@ class ScreenTimeService {
 
         // Skip tracking if app has reached daily limit
         if (_blockedApps.contains(packageName)) {
-          print('ScreenTimeService: $packageName already at daily limit, skipping tracking');
+          print(
+            'ScreenTimeService: $packageName already at daily limit, skipping tracking',
+          );
           continue;
         }
 
@@ -1595,20 +1675,29 @@ class ScreenTimeService {
         // Initialize tracking start time if not set
         if (!_trackingStartTimes.containsKey(packageName)) {
           _trackingStartTimes[packageName] = systemUsageTime;
-          print('ScreenTimeService: Started tracking $packageName for $_currentChildName at ${systemUsageTime}ms');
+          print(
+            'ScreenTimeService: Started tracking $packageName for $_currentChildName at ${systemUsageTime}ms',
+          );
         }
 
         // Calculate usage since we started tracking
-        final trackingStart = _trackingStartTimes[packageName] ?? systemUsageTime;
-        final relativeUsage = (systemUsageTime - trackingStart).clamp(0, double.maxFinite.toInt());
+        final trackingStart =
+            _trackingStartTimes[packageName] ?? systemUsageTime;
+        final relativeUsage = (systemUsageTime - trackingStart).clamp(
+          0,
+          double.maxFinite.toInt(),
+        );
 
         // For browsers, accumulate usage to the appropriate web app
         if (_isBrowser(packageName)) {
           // Add browser usage to YouTube tracking (since YouTube is the main web-based app)
           final youtubePackage = 'com.google.android.youtube';
           if (_restrictedApps.contains(youtubePackage)) {
-            combinedUsage[youtubePackage] = (combinedUsage[youtubePackage] ?? 0) + relativeUsage;
-            print('ScreenTimeService: Adding browser usage to YouTube tracking: ${(relativeUsage / (1000 * 60)).round()}m');
+            combinedUsage[youtubePackage] =
+                (combinedUsage[youtubePackage] ?? 0) + relativeUsage;
+            print(
+              'ScreenTimeService: Adding browser usage to YouTube tracking: ${(relativeUsage / (1000 * 60)).round()}m',
+            );
           }
         } else {
           // Regular app usage
@@ -1628,12 +1717,16 @@ class ScreenTimeService {
           hasChanges = true;
 
           final usedMinutes = (relativeUsage / (1000 * 60)).round();
-          print('ScreenTimeService: Updated $packageName usage for $_currentChildName: ${usedMinutes}m');
+          print(
+            'ScreenTimeService: Updated $packageName usage for $_currentChildName: ${usedMinutes}m',
+          );
 
           // Check blocking conditions
           if (!hasCompletedTasks) {
             // No tasks completed = BLOCK immediately
-            print('ScreenTimeService: $packageName blocked - must complete educational tasks first');
+            print(
+              'ScreenTimeService: $packageName blocked - must complete educational tasks first',
+            );
             await _showEducationalTaskNotification(packageName);
             await _blockApp(packageName, packageName);
             // Also block browsers if this is a web-based app
@@ -1642,7 +1735,9 @@ class ScreenTimeService {
             }
           } else if (relativeUsage >= dailyLimitMs) {
             // Daily limit reached = BLOCK permanently for today
-            print('ScreenTimeService: $packageName reached DAILY LIMIT for $_currentChildName');
+            print(
+              'ScreenTimeService: $packageName reached DAILY LIMIT for $_currentChildName',
+            );
             _blockedApps.add(packageName);
             await _showDailyLimitReachedNotification(packageName);
             await _forceCloseApp(packageName);
@@ -1653,7 +1748,9 @@ class ScreenTimeService {
             continue;
           } else if (relativeUsage >= sessionTimeMs) {
             // Session time expired = need more tasks
-            print('ScreenTimeService: Session expired for $packageName (used ${(relativeUsage / (1000 * 60)).round()}m of ${(sessionTimeMs / (1000 * 60)).round()}m session)');
+            print(
+              'ScreenTimeService: Session expired for $packageName (used ${(relativeUsage / (1000 * 60)).round()}m of ${(sessionTimeMs / (1000 * 60)).round()}m session)',
+            );
             _earnedTimeToday = 0; // Reset earned time to require new tasks
             await _showSessionExpiredNotification(packageName);
             await _forceCloseApp(packageName);
@@ -1664,10 +1761,14 @@ class ScreenTimeService {
           } else {
             // Still within session time
             final sessionRemainingMs = sessionTimeMs - relativeUsage;
-            final sessionRemainingMinutes = (sessionRemainingMs / (1000 * 60)).round();
+            final sessionRemainingMinutes = (sessionRemainingMs / (1000 * 60))
+                .round();
 
             if (sessionRemainingMinutes <= 5 && sessionRemainingMinutes > 0) {
-              await _showSessionWarningNotification(packageName, sessionRemainingMinutes);
+              await _showSessionWarningNotification(
+                packageName,
+                sessionRemainingMinutes,
+              );
             }
           }
         }
@@ -1742,7 +1843,7 @@ class ScreenTimeService {
     try {
       final apps = await InstalledApps.getInstalledApps(true, true);
       final app = apps.firstWhere(
-            (app) => app.packageName == packageName,
+        (app) => app.packageName == packageName,
         orElse: () => throw Exception('App not found'),
       );
       return app.name;
@@ -1810,13 +1911,21 @@ class ScreenTimeService {
 
     final prefs = await SharedPreferences.getInstance();
     final today = DateTime.now().toIso8601String().split('T')[0];
-    await prefs.setDouble('$_earnedTimeKey${_currentChildName}_$today', _earnedTimeToday);
+    await prefs.setDouble(
+      '$_earnedTimeKey${_currentChildName}_$today',
+      _earnedTimeToday,
+    );
 
     final ratio = _screenTimeRules['ratio'] ?? 3.0;
-    final earnedMinutes = 5 * ratio; // 5 min learning * ratio = earned screen time
+    final earnedMinutes =
+        5 * ratio; // 5 min learning * ratio = earned screen time
 
-    print('ScreenTimeService: Educational tasks completed for $_currentChildName');
-    print('  Ratio: ${ratio}x (5 min learning = ${earnedMinutes} min screen time)');
+    print(
+      'ScreenTimeService: Educational tasks completed for $_currentChildName',
+    );
+    print(
+      '  Ratio: ${ratio}x (5 min learning = ${earnedMinutes} min screen time)',
+    );
     print('  Session granted: ${earnedMinutes} minutes');
 
     await AppInterceptionService.checkTaskCompletionAndUpdateAccess();
@@ -1824,13 +1933,20 @@ class ScreenTimeService {
 
   /// Called when educational tasks are completed
   static Future<void> onEducationalTasksCompleted() async {
-    final childName = await _getCurrentChildName();
-    if (childName == null) return;
+    final session =
+        ChildSessionService.currentSession ??
+        await ChildSessionService.restoreSession();
+    if (session == null) return;
 
-    print('ScreenTimeService: Educational tasks completed for $childName');
+    print(
+      'ScreenTimeService: Educational tasks completed for ${session.displayName}',
+    );
 
     final taskService = EducationalTaskService();
-    final hasPendingTasks = await taskService.hasPendingTasks(childName);
+    final hasPendingTasks = await taskService.hasPendingTasks(
+      parentUid: session.parentUid,
+      childId: session.childId,
+    );
 
     if (!hasPendingTasks) {
       await AppInterceptionService.clearAllInterceptions();
@@ -1858,14 +1974,17 @@ class ScreenTimeService {
 
   /// Get current usage statistics
   static Map<String, dynamic> getCurrentUsageStats() {
-    final dailyLimitMs = (_screenTimeRules['dailyLimit'] ?? (1 * 60 * 60 * 1000)).toDouble();
+    final dailyLimitMs =
+        (_screenTimeRules['dailyLimit'] ?? (1 * 60 * 60 * 1000)).toDouble();
     final ratioMultiplier = _screenTimeRules['ratio'] ?? 3.0;
 
     // Check if child has completed educational tasks today
     final hasCompletedTasks = _earnedTimeToday > 0;
 
     // Calculate earned screen time based on ratio
-    final earnedScreenTimeMs = hasCompletedTasks ? (5 * ratioMultiplier * 60 * 1000) : 0.0;
+    final earnedScreenTimeMs = hasCompletedTasks
+        ? (5 * ratioMultiplier * 60 * 1000)
+        : 0.0;
 
     Map<String, dynamic> stats = {};
 
@@ -1880,7 +1999,10 @@ class ScreenTimeService {
       bool needsTasks = false;
 
       // Calculate remaining time from daily limit (for display)
-      final dailyRemaining = (dailyLimitMs - usageMs).clamp(0.0, double.infinity);
+      final dailyRemaining = (dailyLimitMs - usageMs).clamp(
+        0.0,
+        double.infinity,
+      );
 
       if (!hasCompletedTasks && usageMs == 0) {
         // No tasks completed and no usage yet = needs tasks to start
@@ -1938,7 +2060,11 @@ class ScreenTimeService {
   }
 
   /// Create stats entries for display names
-  static Map<String, dynamic> _createStatsForSelectedApps(Map<String, dynamic> packageStats, double dailyLimitMs, double earnedScreenTimeMs) {
+  static Map<String, dynamic> _createStatsForSelectedApps(
+    Map<String, dynamic> packageStats,
+    double dailyLimitMs,
+    double earnedScreenTimeMs,
+  ) {
     Map<String, dynamic> displayStats = Map.from(packageStats);
 
     final appPackageMap = _getAppPackageMap();
@@ -1949,7 +2075,8 @@ class ScreenTimeService {
       final displayName = entry.key;
       final packageName = entry.value;
 
-      if (packageStats.containsKey(packageName) && !displayStats.containsKey(displayName)) {
+      if (packageStats.containsKey(packageName) &&
+          !displayStats.containsKey(displayName)) {
         // Copy the stats but ensure correct blocking logic
         final stats = Map<String, dynamic>.from(packageStats[packageName]);
         displayStats[displayName] = stats;
@@ -1961,7 +2088,9 @@ class ScreenTimeService {
 
   /// Reset daily usage (called at start of new day)
   static Future<void> _resetDailyUsage() async {
-    print('ScreenTimeService: Performing daily reset for $_currentChildName...');
+    print(
+      'ScreenTimeService: Performing daily reset for $_currentChildName...',
+    );
 
     // Clear all tracking data
     _dailyUsage.clear();
@@ -2008,7 +2137,10 @@ class ScreenTimeService {
       if (await hasUsageStatsPermission()) {
         final endTime = DateTime.now();
         final startTime = DateTime(endTime.year, endTime.month, endTime.day);
-        final usageStats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
+        final usageStats = await NativeUsageStatsService.queryUsageStats(
+          startTime,
+          endTime,
+        );
 
         // Update tracking start times to current system values
         _trackingStartTimes.clear();
@@ -2017,7 +2149,9 @@ class ScreenTimeService {
           if (_restrictedApps.contains(packageName)) {
             final usageTime = _asInt(stat.totalTimeInForeground ?? 0);
             _trackingStartTimes[packageName] = usageTime;
-            print('ScreenTimeService: Reset tracking for $packageName to ${usageTime}ms');
+            print(
+              'ScreenTimeService: Reset tracking for $packageName to ${usageTime}ms',
+            );
           }
         }
       }
@@ -2076,11 +2210,26 @@ class ScreenTimeService {
     final today = DateTime.now().toIso8601String().split('T')[0];
 
     // Save data with child-specific keys
-    await prefs.setString('$_dailyUsageKey${_currentChildName}_$today', json.encode(_dailyUsage));
-    await prefs.setString('$_trackingStartKey${_currentChildName}_$today', json.encode(_trackingStartTimes));
-    await prefs.setString('$_screenTimeRulesKey$_currentChildName', json.encode(_screenTimeRules));
-    await prefs.setString('$_restrictedAppsKey$_currentChildName', json.encode(_restrictedApps));
-    await prefs.setStringList('blocked_apps_${_currentChildName}_$today', _blockedApps.toList());
+    await prefs.setString(
+      '$_dailyUsageKey${_currentChildName}_$today',
+      json.encode(_dailyUsage),
+    );
+    await prefs.setString(
+      '$_trackingStartKey${_currentChildName}_$today',
+      json.encode(_trackingStartTimes),
+    );
+    await prefs.setString(
+      '$_screenTimeRulesKey$_currentChildName',
+      json.encode(_screenTimeRules),
+    );
+    await prefs.setString(
+      '$_restrictedAppsKey$_currentChildName',
+      json.encode(_restrictedApps),
+    );
+    await prefs.setStringList(
+      'blocked_apps_${_currentChildName}_$today',
+      _blockedApps.toList(),
+    );
 
     print('ScreenTimeService: Saved data for $_currentChildName');
   }
@@ -2106,7 +2255,10 @@ class ScreenTimeService {
       getRemainingTime: (appName) {
         final stats = getCurrentUsageStats();
         if (stats.containsKey(appName)) {
-          final remainingMs = (stats[appName] as Map<String, dynamic>)['remainingTime'] as double? ?? 0.0;
+          final remainingMs =
+              (stats[appName] as Map<String, dynamic>)['remainingTime']
+                  as double? ??
+              0.0;
           final remainingMinutes = (remainingMs / (1000 * 60)).round();
 
           if (remainingMinutes <= 0) {
@@ -2131,7 +2283,10 @@ class ScreenTimeService {
   }
 
   /// Show warning notification
-  static Future<void> _showWarningNotification(String appName, int remainingMinutes) async {
+  static Future<void> _showWarningNotification(
+    String appName,
+    int remainingMinutes,
+  ) async {
     if (remainingMinutes <= 15 && remainingMinutes > 0) {
       await _notificationService.showWarningNotification(
         appName: appName,
@@ -2141,7 +2296,10 @@ class ScreenTimeService {
   }
 
   /// Show session warning notification
-  static Future<void> _showSessionWarningNotification(String appName, int remainingMinutes) async {
+  static Future<void> _showSessionWarningNotification(
+    String appName,
+    int remainingMinutes,
+  ) async {
     await _notificationService.showWarningNotification(
       appName: appName,
       remainingTime: '$remainingMinutes minutes left in this session',
@@ -2151,7 +2309,9 @@ class ScreenTimeService {
   /// Show time exceeded notification
   static Future<void> _showTimeExceededNotification(String appName) async {
     final dailyLimitMs = _screenTimeRules['dailyLimit'] ?? (1 * 60 * 60 * 1000);
-    final dailyLimitHours = (dailyLimitMs / (1000 * 60 * 60)).toStringAsFixed(1);
+    final dailyLimitHours = (dailyLimitMs / (1000 * 60 * 60)).toStringAsFixed(
+      1,
+    );
 
     await _notificationService.showTimeExceededNotification(
       appName: appName,
@@ -2161,11 +2321,16 @@ class ScreenTimeService {
 
   /// Show educational task notification
   static Future<void> _showEducationalTaskNotification(String appName) async {
-    final childName = await _getCurrentChildName();
-    if (childName == null) return;
+    final session =
+        ChildSessionService.currentSession ??
+        await ChildSessionService.restoreSession();
+    if (session == null) return;
 
     final taskService = EducationalTaskService();
-    final pendingTasks = await taskService.fetchTasks(childName);
+    final pendingTasks = await taskService.fetchTasks(
+      parentUid: session.parentUid,
+      childId: session.childId,
+    );
     final pendingCount = pendingTasks.where((task) => !task.isCompleted).length;
 
     await _notificationService.showEducationalTaskNotification(
@@ -2176,11 +2341,16 @@ class ScreenTimeService {
 
   /// Show session expired notification with exit app button
   static Future<void> _showSessionExpiredNotification(String appName) async {
-    final childName = await _getCurrentChildName();
-    if (childName == null) return;
+    final session =
+        ChildSessionService.currentSession ??
+        await ChildSessionService.restoreSession();
+    if (session == null) return;
 
     final taskService = EducationalTaskService();
-    final pendingTasks = await taskService.fetchTasks(childName);
+    final pendingTasks = await taskService.fetchTasks(
+      parentUid: session.parentUid,
+      childId: session.childId,
+    );
     final pendingCount = pendingTasks.where((task) => !task.isCompleted).length;
 
     // Show notification with exit app option
@@ -2206,17 +2376,29 @@ class ScreenTimeService {
   /// Check for pending educational tasks
   static Future<void> _checkEducationalTasks(String appName) async {
     try {
-      final childName = await _getCurrentChildName();
-      if (childName == null) return;
+      final session =
+          ChildSessionService.currentSession ??
+          await ChildSessionService.restoreSession();
+      if (session == null) return;
 
       final taskService = EducationalTaskService();
-      final hasPending = await taskService.hasPendingTasks(childName);
+      final hasPending = await taskService.hasPendingTasks(
+        parentUid: session.parentUid,
+        childId: session.childId,
+      );
 
       if (hasPending) {
-        print('ScreenTimeService: Found pending educational tasks for $childName when accessing $appName');
+        print(
+          'ScreenTimeService: Found pending educational tasks for ${session.displayName} when accessing $appName',
+        );
 
-        final pendingTasks = await taskService.fetchTasks(childName);
-        final pendingCount = pendingTasks.where((task) => !task.isCompleted).length;
+        final pendingTasks = await taskService.fetchTasks(
+          parentUid: session.parentUid,
+          childId: session.childId,
+        );
+        final pendingCount = pendingTasks
+            .where((task) => !task.isCompleted)
+            .length;
 
         await _notificationService.showEducationalTaskNotification(
           blockedAppName: appName,
@@ -2241,18 +2423,28 @@ class ScreenTimeService {
       print('  Blocked apps: $_blockedApps');
       print('  Earned time today: $_earnedTimeToday');
       print('  Restricted apps: $_restrictedApps');
-      print('  Daily limit: ${(_screenTimeRules['dailyLimit'] ?? 0) / (60 * 60 * 1000)} hours');
+      print(
+        '  Daily limit: ${(_screenTimeRules['dailyLimit'] ?? 0) / (60 * 60 * 1000)} hours',
+      );
       print('  Ratio: ${_screenTimeRules['ratio'] ?? 0}x');
 
       // Check educational tasks
       print('\nEducational Tasks Status:');
-      final childName = await _getCurrentChildName();
-      if (childName != null) {
+      final session =
+          ChildSessionService.currentSession ??
+          await ChildSessionService.restoreSession();
+      if (session != null) {
         final taskService = EducationalTaskService();
-        final hasPending = await taskService.hasPendingTasks(childName);
+        final hasPending = await taskService.hasPendingTasks(
+          parentUid: session.parentUid,
+          childId: session.childId,
+        );
         print('  Has pending tasks: $hasPending');
 
-        final tasks = await taskService.fetchTasks(childName);
+        final tasks = await taskService.fetchTasks(
+          parentUid: session.parentUid,
+          childId: session.childId,
+        );
         print('  Total tasks found: ${tasks.length}');
 
         final today = DateTime.now();
@@ -2264,7 +2456,9 @@ class ScreenTimeService {
         print('  Tasks for today: ${todaysTasks.length}');
 
         for (final task in todaysTasks) {
-          print('    - ${task.subject}: ${task.isCompleted ? "COMPLETED" : "PENDING"}');
+          print(
+            '    - ${task.subject}: ${task.isCompleted ? "COMPLETED" : "PENDING"}',
+          );
         }
       }
 
@@ -2273,7 +2467,8 @@ class ScreenTimeService {
       final startTime = DateTime(endTime.year, endTime.month, endTime.day);
 
       print('\nSystem usage stats:');
-      final List<UsageStatInfo> usageStats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
+      final List<UsageStatInfo> usageStats =
+          await NativeUsageStatsService.queryUsageStats(startTime, endTime);
       print('Found ${usageStats.length} usage stats entries');
 
       // Show calculated stats
@@ -2284,8 +2479,10 @@ class ScreenTimeService {
         final data = entry.value;
         if (data is Map) {
           final usedMinutes = ((data['usedTime'] ?? 0) / (1000 * 60)).round();
-          final remainingMinutes = ((data['remainingTime'] ?? 0) / (1000 * 60)).round();
-          final sessionRemaining = ((data['sessionRemaining'] ?? 0) / (1000 * 60)).round();
+          final remainingMinutes = ((data['remainingTime'] ?? 0) / (1000 * 60))
+              .round();
+          final sessionRemaining =
+              ((data['sessionRemaining'] ?? 0) / (1000 * 60)).round();
           final isBlocked = data['isBlocked'] ?? false;
           final needsTasks = data['needsTasks'] ?? false;
           print('  $app:');
@@ -2296,7 +2493,6 @@ class ScreenTimeService {
           print('    Needs tasks: $needsTasks');
         }
       }
-
     } catch (e) {
       print('Error in debug check: $e');
     }
@@ -2305,39 +2501,55 @@ class ScreenTimeService {
 
   /// Force generate educational tasks for testing
   static Future<void> forceGenerateEducationalTasks() async {
-    final childName = await _getCurrentChildName();
-    if (childName == null) {
-      print('ScreenTimeService: No child name set, cannot generate tasks');
+    final session =
+        ChildSessionService.currentSession ??
+        await ChildSessionService.restoreSession();
+    if (session == null) {
+      print(
+        'ScreenTimeService: No active child session, cannot generate tasks',
+      );
       return;
     }
 
-    print('ScreenTimeService: Force generating educational tasks for $childName');
+    print(
+      'ScreenTimeService: Force generating educational tasks for childId ${session.childId}',
+    );
 
     try {
       // Get child's data to find subjects
-      final query = await FirebaseFirestore.instance
-          .collectionGroup('children')
-          .where('name', isEqualTo: childName)
-          .get();
+      final childDoc = await session.childRef().get();
 
-      if (query.docs.isEmpty) {
+      if (!childDoc.exists) {
         print('ScreenTimeService: Child not found in Firestore');
         return;
       }
 
-      final childData = query.docs.first.data();
-      final subjects = List<String>.from(childData['subjectsOfInterest'] ?? ['Math', 'Science']);
+      final childData = childDoc.data()!;
+      final subjects = List<String>.from(
+        childData['subjectsOfInterest'] ?? ['Math', 'Science'],
+      );
       final ageRange = childData['ageRange'] ?? '6-8';
 
-      print('ScreenTimeService: Generating tasks for subjects: $subjects, age: $ageRange');
+      print(
+        'ScreenTimeService: Generating tasks for subjects: $subjects, age: $ageRange',
+      );
 
       final taskService = EducationalTaskService();
-      await taskService.generateDailyTasks(childName, subjects, ageRange);
+      await taskService.generateDailyTasks(
+        parentUid: session.parentUid,
+        childId: session.childId,
+        childName: session.displayName,
+        subjects: subjects,
+        ageRange: ageRange,
+      );
 
       print('ScreenTimeService: Tasks generated successfully');
 
       // Verify tasks were created
-      final tasks = await taskService.fetchTasks(childName);
+      final tasks = await taskService.fetchTasks(
+        parentUid: session.parentUid,
+        childId: session.childId,
+      );
       final today = DateTime.now();
       final todaysTasks = tasks.where((task) {
         return task.assignedAt.year == today.year &&
@@ -2346,7 +2558,6 @@ class ScreenTimeService {
       }).toList();
 
       print('ScreenTimeService: Created ${todaysTasks.length} tasks for today');
-
     } catch (e) {
       print('ScreenTimeService: Error generating tasks: $e');
     }
@@ -2356,25 +2567,19 @@ class ScreenTimeService {
   /// This prevents accumulated overrides from permanently increasing limits across days.
   static Future<void> _resetFirestoreAppLimitsToBase() async {
     try {
-      final childName = await _getCurrentChildName();
-      if (childName == null || childName.isEmpty) {
-        print('ScreenTimeService: Cannot reset app limits - no child name set');
+      final session =
+          ChildSessionService.currentSession ??
+          await ChildSessionService.restoreSession();
+      if (session == null) {
+        print(
+          'ScreenTimeService: Cannot reset app limits - no active child session',
+        );
         return;
       }
 
-      // Find the child's document to locate the parent and selected apps
-      final childQuery = await FirebaseFirestore.instance
-          .collectionGroup('children')
-          .where('name', isEqualTo: childName)
-          .get();
-
-      if (childQuery.docs.isEmpty) {
-        print('ScreenTimeService: Cannot reset app limits - child not found in Firestore');
-        return;
-      }
-
-      final childDocRef = childQuery.docs.first.reference; // users/{parentUid}/children/{childName}
-      final parentUid = childDocRef.parent.parent!.id;
+      // Canonical child document: users/{parentUid}/children/{childId}
+      final childDocRef = session.childRef();
+      final parentUid = session.parentUid;
 
       // Read parent's screen time rules to determine the base daily limit (in hours)
       final rulesDoc = await FirebaseFirestore.instance
@@ -2388,10 +2593,20 @@ class ScreenTimeService {
       if (rulesDoc.exists) {
         final rulesData = rulesDoc.data()!;
         if ((rulesData['applySameForAll'] ?? false) == true) {
-          baseLimitHours = (rulesData['unifiedRules']?['limit'] ?? 1.0).toDouble();
+          baseLimitHours = (rulesData['unifiedRules']?['limit'] ?? 1.0)
+              .toDouble();
         } else {
-          final childrenData = rulesData['children'] as Map<String, dynamic>? ?? {};
-          baseLimitHours = (childrenData[childName]?['limit'] ?? 1.0).toDouble();
+          // Prefer children[childId], fall back to the legacy
+          // children[displayName] entry — see resolveChildRuleEntry.
+          final childrenData =
+              rulesData['children'] as Map<String, dynamic>? ?? {};
+          final entry = resolveChildRuleEntry(
+            childrenData: childrenData,
+            parentUid: parentUid,
+            childId: session.childId,
+            displayName: session.displayName,
+          );
+          baseLimitHours = (entry?['limit'] ?? 1.0).toDouble();
         }
       }
 
@@ -2399,21 +2614,32 @@ class ScreenTimeService {
 
       // Get selected apps so we can set per-app limits uniformly
       final childSnapshot = await childDocRef.get();
+      if (!childSnapshot.exists) {
+        print(
+          'ScreenTimeService: Cannot reset app limits - child document not found at ${childDocRef.path}',
+        );
+        return;
+      }
       final childData = childSnapshot.data() as Map<String, dynamic>? ?? {};
       final selectedApps = List<String>.from(childData['selectedApps'] ?? []);
 
       if (selectedApps.isEmpty) {
-        print('ScreenTimeService: No selected apps found for $childName when resetting app limits');
+        print(
+          'ScreenTimeService: No selected apps found for childId ${session.childId} when resetting app limits',
+        );
         return;
       }
 
       // Build fresh appLimits map applying the base limit to each selected app
       final Map<String, dynamic> newAppLimits = {
-        for (final app in selectedApps) app: {'dailyLimitMinutes': baseLimitMinutes}
+        for (final app in selectedApps)
+          app: {'dailyLimitMinutes': baseLimitMinutes},
       };
 
       await childDocRef.update({'appLimits': newAppLimits});
-      print('ScreenTimeService: Reset appLimits to base (${baseLimitMinutes}m) for ${selectedApps.length} apps for $childName');
+      print(
+        'ScreenTimeService: Reset appLimits to base (${baseLimitMinutes}m) for ${selectedApps.length} apps for childId ${session.childId}',
+      );
     } catch (e) {
       print('ScreenTimeService: Error resetting Firestore app limits: $e');
     }
