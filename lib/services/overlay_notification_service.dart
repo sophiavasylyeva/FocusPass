@@ -2,7 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 class OverlayNotificationService {
-  static final OverlayNotificationService _instance = OverlayNotificationService._internal();
+  static final OverlayNotificationService _instance =
+      OverlayNotificationService._internal();
   factory OverlayNotificationService() => _instance;
   OverlayNotificationService._internal();
 
@@ -48,7 +49,7 @@ class OverlayNotificationService {
   static void hideOverlayNotification() {
     _dismissTimer?.cancel();
     _dismissTimer = null;
-    
+
     _currentOverlay?.remove();
     _currentOverlay = null;
   }
@@ -77,7 +78,8 @@ class OverlayNotificationService {
     showOverlayNotification(
       context: context,
       title: '🚫 Time Limit Reached',
-      message: 'Your time limit for $appName has been reached. Complete learning tasks to earn more time!',
+      message:
+          'Your time limit for $appName has been reached. Complete learning tasks to earn more time!',
       icon: Icons.block,
       backgroundColor: Colors.red,
       duration: const Duration(seconds: 10),
@@ -94,7 +96,8 @@ class OverlayNotificationService {
     showOverlayNotification(
       context: context,
       title: '📚 Complete Tasks First!',
-      message: 'You have $pendingTasks pending tasks. Complete them to unlock $appName and earn screen time!',
+      message:
+          'You have $pendingTasks pending tasks. Complete them to unlock $appName and earn screen time!',
       icon: Icons.school,
       backgroundColor: const Color.fromARGB(255, 76, 175, 80),
       duration: const Duration(seconds: 12),
@@ -110,7 +113,8 @@ class OverlayNotificationService {
     showOverlayNotification(
       context: context,
       title: '🎉 Tasks Completed!',
-      message: 'Great job! You earned $earnedMinutes minutes of screen time. Apps are now unlocked!',
+      message:
+          'Great job! You earned $earnedMinutes minutes of screen time. Apps are now unlocked!',
       icon: Icons.celebration,
       backgroundColor: const Color.fromARGB(255, 76, 175, 80),
       duration: const Duration(seconds: 8),
@@ -136,7 +140,8 @@ class _OverlayNotificationWidget extends StatefulWidget {
   });
 
   @override
-  State<_OverlayNotificationWidget> createState() => _OverlayNotificationWidgetState();
+  State<_OverlayNotificationWidget> createState() =>
+      _OverlayNotificationWidgetState();
 }
 
 class _OverlayNotificationWidgetState extends State<_OverlayNotificationWidget>
@@ -153,21 +158,17 @@ class _OverlayNotificationWidgetState extends State<_OverlayNotificationWidget>
       vsync: this,
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, -1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.elasticOut,
-    ));
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Curves.elasticOut,
+          ),
+        );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeIn,
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+    );
 
     _animationController.forward();
   }
@@ -216,11 +217,7 @@ class _OverlayNotificationWidgetState extends State<_OverlayNotificationWidget>
                     onTap: widget.onTap ?? _dismiss,
                     child: Row(
                       children: [
-                        Icon(
-                          widget.icon,
-                          color: Colors.white,
-                          size: 28,
-                        ),
+                        Icon(widget.icon, color: Colors.white, size: 28),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(

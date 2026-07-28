@@ -203,7 +203,8 @@ class UnifiedScreenTimeService {
         final isBlocked = data['isBlocked'] ?? false;
 
         // Validate time values are reasonable
-        if (usedTime >= 0 && usedTime <= (24 * 60 * 60 * 1000)) { // Max 24 hours
+        if (usedTime >= 0 && usedTime <= (24 * 60 * 60 * 1000)) {
+          // Max 24 hours
           validatedStats[appName] = {
             'usedTime': usedTime,
             'remainingTime': remainingTime >= 0 ? remainingTime : 0,
@@ -357,15 +358,18 @@ class UnifiedScreenTimeService {
 
       // Provide diagnosis message
       if (!hasPermission) {
-        diagnosis['message'] = 'Usage Access permission not granted. Please enable it in Settings.';
+        diagnosis['message'] =
+            'Usage Access permission not granted. Please enable it in Settings.';
       } else if (stats.isEmpty) {
-        diagnosis['message'] = 'No apps are being tracked. Check if restricted apps are configured.';
+        diagnosis['message'] =
+            'No apps are being tracked. Check if restricted apps are configured.';
       } else if (!hasAnyUsage) {
-        diagnosis['message'] = 'Tracking configured but no usage detected. Try using a restricted app.';
+        diagnosis['message'] =
+            'Tracking configured but no usage detected. Try using a restricted app.';
       } else {
-        diagnosis['message'] = 'Screen time tracking appears to be working correctly.';
+        diagnosis['message'] =
+            'Screen time tracking appears to be working correctly.';
       }
-
     } else if (Platform.isIOS) {
       diagnosis['platform'] = 'iOS';
       diagnosis['message'] = 'iOS diagnostics not implemented';

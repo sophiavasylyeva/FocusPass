@@ -46,7 +46,11 @@ class HourCapCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             fmtHours(hours),
-            style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: kDarkGreen),
+            style: const TextStyle(
+              fontSize: 40,
+              fontWeight: FontWeight.bold,
+              color: kDarkGreen,
+            ),
           ),
           Text(
             '$minutes minutes max per day',
@@ -61,7 +65,10 @@ class HourCapCard extends StatelessWidget {
               return GestureDetector(
                 onTap: () => onChanged(h),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: selected ? kDarkGreen : Colors.grey[200],
                     borderRadius: BorderRadius.circular(20),

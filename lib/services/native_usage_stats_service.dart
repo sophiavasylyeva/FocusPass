@@ -19,7 +19,8 @@ class UsageStatInfo {
   factory UsageStatInfo.fromMap(Map<dynamic, dynamic> map) {
     return UsageStatInfo(
       packageName: map['packageName'] as String? ?? '',
-      totalTimeInForeground: (map['totalTimeInForeground'] as num?)?.toInt() ?? 0,
+      totalTimeInForeground:
+          (map['totalTimeInForeground'] as num?)?.toInt() ?? 0,
       firstTimeStamp: (map['firstTimeStamp'] as num?)?.toInt() ?? 0,
       lastTimeStamp: (map['lastTimeStamp'] as num?)?.toInt() ?? 0,
       lastTimeUsed: (map['lastTimeUsed'] as num?)?.toInt() ?? 0,
@@ -28,9 +29,14 @@ class UsageStatInfo {
 }
 
 class NativeUsageStatsService {
-  static const MethodChannel _channel = MethodChannel('com.focuspass.usage_stats');
+  static const MethodChannel _channel = MethodChannel(
+    'com.focuspass.usage_stats',
+  );
 
-  static Future<List<UsageStatInfo>> queryUsageStats(DateTime startTime, DateTime endTime) async {
+  static Future<List<UsageStatInfo>> queryUsageStats(
+    DateTime startTime,
+    DateTime endTime,
+  ) async {
     if (!Platform.isAndroid) {
       return [];
     }

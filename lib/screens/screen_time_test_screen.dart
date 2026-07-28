@@ -8,7 +8,7 @@ import 'dart:io';
 
 class ScreenTimeTestScreen extends StatefulWidget {
   final String childName;
-  
+
   const ScreenTimeTestScreen({super.key, required this.childName});
 
   @override
@@ -23,7 +23,7 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
   bool _isTestingActive = false;
   int _testDuration = 0;
   String _simulatedApp = 'Instagram';
-  
+
   @override
   void initState() {
     super.initState();
@@ -38,36 +38,36 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
 
   Future<void> _initializeTest() async {
     _addLog('🔄 Starting initialization...');
-    
+
     await UnifiedScreenTimeService.setCurrentChildName(widget.childName);
     _addLog('👤 Child name set to: ${widget.childName}');
-    
+
     await UnifiedScreenTimeService.initialize();
     _addLog('⚙️ Screen time service initialized');
-    
+
     final hasPermissions = await UnifiedScreenTimeService.hasPermissions();
     _addLog('🔍 Checking permissions...');
-    
+
     final stats = await UnifiedScreenTimeService.getCurrentUsageStats();
     _addLog('📊 Getting usage stats...');
-    
+
     setState(() {
       _hasPermissions = hasPermissions;
       _usageStats = stats;
     });
-    
+
     _addLog('✅ Screen time service initialized');
     _addLog('📱 Platform: ${UnifiedScreenTimeService.getPlatformName()}');
     _addLog('🔐 Permissions: ${_hasPermissions ? 'Granted' : 'Denied'}');
     _addLog('📊 Apps being monitored: ${_usageStats.keys.join(', ')}');
-    
+
     if (_usageStats.isEmpty) {
       _addLog('⚠️ No usage data found - this could mean:');
       _addLog('  • Usage stats permission not granted');
       _addLog('  • No apps have been used today');
       _addLog('  • App name mapping issue');
     }
-    
+
     // Show more detailed info
     _addLog('📋 Detailed stats:');
     _usageStats.forEach((app, data) {
@@ -77,14 +77,19 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
 
   void _addLog(String message) {
     setState(() {
-      _testLogs.insert(0, '${DateTime.now().toIso8601String().split('T')[1].split('.')[0]} - $message');
+      _testLogs.insert(
+        0,
+        '${DateTime.now().toIso8601String().split('T')[1].split('.')[0]} - $message',
+      );
     });
   }
 
   Future<void> _startScreenTimeTest() async {
     if (!_hasPermissions) {
       _addLog('❌ Cannot start test - permissions not granted');
-      _addLog('🔧 Please enable Usage Access for FocusPass in Android Settings');
+      _addLog(
+        '🔧 Please enable Usage Access for FocusPass in Android Settings',
+      );
       await _showPermissionDialog();
       return;
     }
@@ -97,26 +102,28 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
     _addLog('🚀 Starting real-time screen time monitoring');
     _addLog('📱 Monitoring actual usage of: $_simulatedApp');
     _addLog('⚠️ Note: Open $_simulatedApp now to test real usage tracking');
-    
+
     _testTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
       _testDuration += 10;
-      
+
       // Update usage stats with real data
       final stats = await UnifiedScreenTimeService.getCurrentUsageStats();
       setState(() {
         _usageStats = stats;
       });
-      
+
       // Check if app is blocked
       final appStats = _usageStats[_simulatedApp];
       if (appStats != null) {
         final isBlocked = appStats['isBlocked'] as bool;
         final usedTime = (appStats['usedTime'] as num).toInt();
         final remainingTime = (appStats['remainingTime'] as num).toDouble();
-        
+
         _addLog('⏱️ Test duration: ${_testDuration}s');
-        _addLog('📊 $_simulatedApp: Used ${(usedTime / (1000 * 60)).round()}m, Remaining ${(remainingTime / (1000 * 60)).round()}m');
-        
+        _addLog(
+          '📊 $_simulatedApp: Used ${(usedTime / (1000 * 60)).round()}m, Remaining ${(remainingTime / (1000 * 60)).round()}m',
+        );
+
         if (isBlocked) {
           _addLog('🚫 $_simulatedApp is now BLOCKED!');
           _addLog('🎯 Screen time limit reached - test successful!');
@@ -125,7 +132,7 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
       } else {
         _addLog('⚠️ No data for $_simulatedApp - try opening the app');
       }
-      
+
       // Stop test after 5 minutes if nothing happens
       if (_testDuration >= 300) {
         _addLog('⏰ Test timeout - stopping after 5 minutes');
@@ -145,7 +152,7 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
           '1. Go to Settings > Apps > Special Access\n'
           '2. Tap "Usage Access"\n'
           '3. Find FocusPass and enable it\n'
-          '4. Return to this screen and try again'
+          '4. Return to this screen and try again',
         ),
         actions: [
           TextButton(
@@ -169,14 +176,14 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
     const earnedMinutes = 15.0;
     await UnifiedScreenTimeService.addEarnedTime(earnedMinutes);
     _addLog('🎉 Simulated task completion - earned ${earnedMinutes}m');
-    
+
     // Refresh stats
     final stats = await UnifiedScreenTimeService.getCurrentUsageStats();
     setState(() {
       _usageStats = stats;
     });
   }
-  
+
   Future<void> _debugRealUsageStats() async {
     _addLog('🔍 Running usage stats debug...');
     if (Platform.isAndroid) {
@@ -190,7 +197,7 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
       _addLog('⚠️ Debug function only available on Android');
     }
   }
-  
+
   Future<void> _callDebugFunction() async {
     // Import the screen time service directly
     const platform = MethodChannel('com.focuspass.debug');
@@ -202,32 +209,33 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
       await _manualDebugCheck();
     }
   }
-  
+
   Future<void> _manualDebugCheck() async {
     try {
       // This is a basic check we can do from Dart side
       _addLog('📊 Manual debug check starting...');
-      
+
       // Run the detailed debug function
       await UnifiedScreenTimeService.debugUsageStats();
       _addLog('🔍 Detailed debug completed (check console)');
-      
+
       // Get current stats
       final stats = await UnifiedScreenTimeService.getCurrentUsageStats();
       _addLog('📱 Current stats: ${stats.keys.join(", ")}');
-      
+
       // Check permissions
       final hasPermissions = await UnifiedScreenTimeService.hasPermissions();
       _addLog('🔐 Has permissions: $hasPermissions');
-      
+
       // Show stats details
       stats.forEach((app, data) {
         final usedMinutes = (data['usedTime'] / (1000 * 60)).round();
         final remainingMinutes = (data['remainingTime'] / (1000 * 60)).round();
         final isBlocked = data['isBlocked'] as bool;
-        _addLog('📊 $app: ${usedMinutes}m used, ${remainingMinutes}m remaining, blocked: $isBlocked');
+        _addLog(
+          '📊 $app: ${usedMinutes}m used, ${remainingMinutes}m remaining, blocked: $isBlocked',
+        );
       });
-      
     } catch (e) {
       _addLog('❌ Manual debug failed: $e');
     }
@@ -246,7 +254,8 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
       const platform = MethodChannel('com.focuspass.app_blocker');
       await platform.invokeMethod('showBlockingOverlay', {
         'appName': _simulatedApp,
-        'message': 'TEST: Screen time limit reached! Complete tasks to earn more time.'
+        'message':
+            'TEST: Screen time limit reached! Complete tasks to earn more time.',
       });
       _addLog('🔔 Android notification test triggered');
     } catch (e) {
@@ -260,7 +269,7 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
       await platform.invokeMethod('showTestNotification', {
         'title': 'Screen Time Limit Reached',
         'message': 'Complete learning tasks to earn more screen time!',
-        'appName': _simulatedApp
+        'appName': _simulatedApp,
       });
       _addLog('🔔 iOS notification test triggered');
     } catch (e) {
@@ -273,14 +282,16 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
       const platform = MethodChannel('com.focuspass.app_blocker');
       await platform.invokeMethod('openUsageStatsSettings');
       _addLog('⚙️ Opened usage stats settings');
-      
+
       // Wait a bit then check permissions again
       await Future.delayed(Duration(seconds: 2));
       final hasPermissions = await UnifiedScreenTimeService.hasPermissions();
       setState(() {
         _hasPermissions = hasPermissions;
       });
-      _addLog('🔄 Permission status updated: ${_hasPermissions ? 'Granted' : 'Still denied'}');
+      _addLog(
+        '🔄 Permission status updated: ${_hasPermissions ? 'Granted' : 'Still denied'}',
+      );
     } catch (e) {
       _addLog('❌ Failed to open settings: $e');
     }
@@ -291,7 +302,10 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
     return Scaffold(
       backgroundColor: kAccentGreen,
       appBar: AppBar(
-        title: const Text('Screen Time Test', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Screen Time Test',
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: kDarkGreen,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -309,7 +323,10 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                   children: [
                     Text(
                       'Test Status',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -319,18 +336,24 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                           color: _hasPermissions ? Colors.green : Colors.red,
                         ),
                         const SizedBox(width: 8),
-                        Text('Permissions: ${_hasPermissions ? 'Granted' : 'Denied'}'),
+                        Text(
+                          'Permissions: ${_hasPermissions ? 'Granted' : 'Denied'}',
+                        ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
                         Icon(
-                          _isTestingActive ? Icons.play_circle : Icons.pause_circle,
+                          _isTestingActive
+                              ? Icons.play_circle
+                              : Icons.pause_circle,
                           color: _isTestingActive ? Colors.blue : Colors.grey,
                         ),
                         const SizedBox(width: 8),
-                        Text('Test Status: ${_isTestingActive ? 'Running' : 'Stopped'}'),
+                        Text(
+                          'Test Status: ${_isTestingActive ? 'Running' : 'Stopped'}',
+                        ),
                       ],
                     ),
                     if (_isTestingActive) ...[
@@ -353,10 +376,13 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                   children: [
                     Text(
                       'Test Controls',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // App Selection
                     Row(
                       children: [
@@ -370,20 +396,26 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                                 _simulatedApp = newValue!;
                               });
                             },
-                            items: <String>['Instagram', 'TikTok', 'YouTube', 'Snapchat', 'Twitter']
-                                .map<DropdownMenuItem<String>>((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text(value),
-                              );
-                            }).toList(),
+                            items:
+                                <String>[
+                                  'Instagram',
+                                  'TikTok',
+                                  'YouTube',
+                                  'Snapchat',
+                                  'Twitter',
+                                ].map<DropdownMenuItem<String>>((String value) {
+                                  return DropdownMenuItem<String>(
+                                    value: value,
+                                    child: Text(value),
+                                  );
+                                }).toList(),
                           ),
                         ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Test Buttons
                     Wrap(
                       spacing: 8,
@@ -400,7 +432,7 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                             foregroundColor: Colors.white,
                           ),
                         ),
-                        
+
                         ElevatedButton.icon(
                           onPressed: _isTestingActive ? _stopTest : null,
                           icon: Icon(Icons.stop),
@@ -410,7 +442,7 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                             foregroundColor: Colors.white,
                           ),
                         ),
-                        
+
                         ElevatedButton.icon(
                           onPressed: _simulateTaskCompletion,
                           icon: Icon(Icons.star),
@@ -420,14 +452,15 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                             foregroundColor: Colors.white,
                           ),
                         ),
-                        
+
                         ElevatedButton.icon(
                           onPressed: () async {
                             await UnifiedScreenTimeService.resetScreenTimeToZero();
                             _addLog('🌀 Reset screen time to 0 minutes');
 
                             // Refresh stats to show updated screen time
-                            final stats = await UnifiedScreenTimeService.getCurrentUsageStats();
+                            final stats =
+                                await UnifiedScreenTimeService.getCurrentUsageStats();
                             setState(() {
                               _usageStats = stats;
                             });
@@ -439,7 +472,7 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                             foregroundColor: Colors.white,
                           ),
                         ),
-                        
+
                         ElevatedButton.icon(
                           onPressed: _testNotificationSystem,
                           icon: Icon(Icons.notifications),
@@ -449,7 +482,7 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                             foregroundColor: Colors.white,
                           ),
                         ),
-                        
+
                         ElevatedButton.icon(
                           onPressed: _openUsageStatsSettings,
                           icon: Icon(Icons.settings),
@@ -459,7 +492,7 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                             foregroundColor: Colors.white,
                           ),
                         ),
-                        
+
                         ElevatedButton.icon(
                           onPressed: _debugRealUsageStats,
                           icon: Icon(Icons.bug_report),
@@ -487,7 +520,10 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                   children: [
                     Text(
                       'Current Usage Stats',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     if (_usageStats.isEmpty)
@@ -496,15 +532,20 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                       ..._usageStats.entries.map((entry) {
                         final appName = entry.key;
                         final stats = entry.value;
-                        final usedTime = ((stats['usedTime'] as num) / (1000 * 60)).round();
-                        final remainingTime = ((stats['remainingTime'] as num) / (1000 * 60)).round();
+                        final usedTime =
+                            ((stats['usedTime'] as num) / (1000 * 60)).round();
+                        final remainingTime =
+                            ((stats['remainingTime'] as num) / (1000 * 60))
+                                .round();
                         final isBlocked = stats['isBlocked'] as bool;
-                        
+
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: isBlocked ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                            color: isBlocked
+                                ? Colors.red.withOpacity(0.1)
+                                : Colors.green.withOpacity(0.1),
                             border: Border.all(
                               color: isBlocked ? Colors.red : Colors.green,
                             ),
@@ -523,22 +564,32 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                                   children: [
                                     Text(
                                       appName,
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                    Text('Used: ${usedTime}m | Remaining: ${remainingTime}m'),
+                                    Text(
+                                      'Used: ${usedTime}m | Remaining: ${remainingTime}m',
+                                    ),
                                   ],
                                 ),
                               ),
                               if (isBlocked)
                                 Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.red,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
                                     'BLOCKED',
-                                    style: TextStyle(color: Colors.white, fontSize: 12),
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ),
                             ],
@@ -564,7 +615,10 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                       children: [
                         Text(
                           'Test Logs',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         TextButton(
                           onPressed: () {
@@ -588,17 +642,21 @@ class _ScreenTimeTestScreenState extends State<ScreenTimeTestScreen> {
                       child: SingleChildScrollView(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: _testLogs.map((log) => Padding(
-                            padding: const EdgeInsets.only(bottom: 2),
-                            child: Text(
-                              log,
-                              style: TextStyle(
-                                color: Colors.green,
-                                fontFamily: 'monospace',
-                                fontSize: 12,
-                              ),
-                            ),
-                          )).toList(),
+                          children: _testLogs
+                              .map(
+                                (log) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 2),
+                                  child: Text(
+                                    log,
+                                    style: TextStyle(
+                                      color: Colors.green,
+                                      fontFamily: 'monospace',
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
                         ),
                       ),
                     ),

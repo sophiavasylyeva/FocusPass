@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import '../utils/constants.dart';
 import 'welcome_screen.dart';
@@ -72,8 +71,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         ),
                         const SizedBox(height: 24),
 
-                        const Text("Parent's Name",
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                        const Text(
+                          "Parent's Name",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _nameController,
@@ -83,8 +87,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                             fillColor: Colors.white,
                             hintText: 'Your name',
                             hintStyle: TextStyle(color: Colors.grey),
-                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
-                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white),
+                            ),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().length < 2) {
@@ -96,8 +104,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
                         const SizedBox(height: 16),
 
-                        const Text('Email',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                        const Text(
+                          'Email',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _emailController,
@@ -107,8 +120,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                             fillColor: Colors.white,
                             hintText: 'parent@example.com',
                             hintStyle: TextStyle(color: Colors.grey),
-                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
-                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white),
+                            ),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().length < 3) {
@@ -120,8 +137,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
                         const SizedBox(height: 16),
 
-                        const Text('Password',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                        const Text(
+                          'Password',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _passwordController,
@@ -132,14 +154,22 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                             fillColor: Colors.white,
                             hintText: 'Create a password',
                             hintStyle: const TextStyle(color: Colors.grey),
-                            enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
-                            focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+                            enabledBorder: const OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white),
+                            ),
+                            focusedBorder: const OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white),
+                            ),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                _obscurePassword
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
                                 color: Colors.grey,
                               ),
-                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                              onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
                             ),
                           ),
                           validator: (value) {
@@ -152,8 +182,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
                         const SizedBox(height: 16),
 
-                        const Text('Confirm Password',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                        const Text(
+                          'Confirm Password',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _confirmPasswordController,
@@ -164,21 +199,31 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                             fillColor: Colors.white,
                             hintText: 'Re-enter your password',
                             hintStyle: const TextStyle(color: Colors.grey),
-                            enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
-                            focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+                            enabledBorder: const OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white),
+                            ),
+                            focusedBorder: const OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white),
+                            ),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                                _obscureConfirmPassword
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
                                 color: Colors.grey,
                               ),
-                              onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                              onPressed: () => setState(
+                                () => _obscureConfirmPassword =
+                                    !_obscureConfirmPassword,
+                              ),
                             ),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Please confirm your password';
                             }
-                            if (value.trim() != _passwordController.text.trim()) {
+                            if (value.trim() !=
+                                _passwordController.text.trim()) {
                               return 'Passwords do not match';
                             }
                             return null;
@@ -190,34 +235,46 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                           onPressed: () async {
                             if (_formKey.currentState!.validate()) {
                               try {
-                                final authResult = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-                                  email: _emailController.text.trim(),
-                                  password: _passwordController.text.trim(),
-                                );
+                                final authResult = await FirebaseAuth.instance
+                                    .createUserWithEmailAndPassword(
+                                      email: _emailController.text.trim(),
+                                      password: _passwordController.text.trim(),
+                                    );
 
                                 final uid = authResult.user?.uid;
 
                                 if (uid != null) {
-                                  await FirebaseFirestore.instance.collection('users').doc(uid).set({
-                                    'email': _emailController.text.trim(),
-                                    'name': _nameController.text.trim(),
-                                    'role': 'parent',
-                                    'setupComplete': true, // Complete setup immediately
-                                    'createdAt': FieldValue.serverTimestamp(),
-                                  });
+                                  await FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(uid)
+                                      .set({
+                                        'email': _emailController.text.trim(),
+                                        'name': _nameController.text.trim(),
+                                        'role': 'parent',
+                                        'setupComplete':
+                                            true, // Complete setup immediately
+                                        'createdAt':
+                                            FieldValue.serverTimestamp(),
+                                      });
 
                                   Navigator.pushReplacement(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => ParentDashboardScreen(parentName: _nameController.text.trim()),
+                                      builder: (context) =>
+                                          ParentDashboardScreen(
+                                            parentName: _nameController.text
+                                                .trim(),
+                                          ),
                                     ),
                                   );
                                 }
-
-
                               } on FirebaseAuthException catch (e) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Account creation failed: ${e.message}')),
+                                  SnackBar(
+                                    content: Text(
+                                      'Account creation failed: ${e.message}',
+                                    ),
+                                  ),
                                 );
                               }
                             }
@@ -249,7 +306,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                           onPressed: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => const LoginScreen()),
+                              MaterialPageRoute(
+                                builder: (context) => const LoginScreen(),
+                              ),
                             );
                           },
                           style: OutlinedButton.styleFrom(
@@ -271,10 +330,16 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                           onPressed: () {
                             Navigator.pushReplacement(
                               context,
-                              MaterialPageRoute(builder: (context) => const WelcomeScreen(autoLogin: false)),
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const WelcomeScreen(autoLogin: false),
+                              ),
                             );
                           },
-                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                          ),
                           label: const Text(
                             'Back to Welcome',
                             style: TextStyle(color: Colors.white),

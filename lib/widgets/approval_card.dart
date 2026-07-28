@@ -69,7 +69,10 @@ class _ApprovalCardState extends State<ApprovalCard> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Center(
-                  child: Text(widget.task.emoji, style: const TextStyle(fontSize: 22)),
+                  child: Text(
+                    widget.task.emoji,
+                    style: const TextStyle(fontSize: 22),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -82,12 +85,18 @@ class _ApprovalCardState extends State<ApprovalCard> {
                         Expanded(
                           child: Text(
                             widget.task.title,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
                           ),
                         ),
                         if (widget.task.isCustom)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.orange.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(8),
@@ -108,17 +117,25 @@ class _ApprovalCardState extends State<ApprovalCard> {
                       '${widget.task.childName} · proposed ${fmtMinutes(widget.task.proposedMinutes)}',
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
-                    if (widget.task.note != null && widget.task.note!.isNotEmpty) ...[
+                    if (widget.task.note != null &&
+                        widget.task.note!.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.grey[100],
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           '"${widget.task.note}"',
-                          style: TextStyle(color: Colors.grey[700], fontSize: 13, fontStyle: FontStyle.italic),
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 13,
+                            fontStyle: FontStyle.italic,
+                          ),
                         ),
                       ),
                     ],
@@ -133,12 +150,22 @@ class _ApprovalCardState extends State<ApprovalCard> {
             children: [
               const Text(
                 'AWARD',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.8),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                  letterSpacing: 0.8,
+                ),
               ),
               if (widget.capMinutes != null)
                 Text(
                   'MAX ${fmtMinutes(widget.capMinutes!).toUpperCase()} TODAY',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.8),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                    letterSpacing: 0.8,
+                  ),
                 ),
             ],
           ),
@@ -147,16 +174,18 @@ class _ApprovalCardState extends State<ApprovalCard> {
             spacing: 6,
             runSpacing: 6,
             children: [
-              ..._quickOptions.map((m) => _QuickChip(
-                    label: '${m}m',
-                    selected: _minutes == m,
-                    onTap: () {
-                      setState(() {
-                        _minutes = m;
-                        _minutesController.text = '$m';
-                      });
-                    },
-                  )),
+              ..._quickOptions.map(
+                (m) => _QuickChip(
+                  label: '${m}m',
+                  selected: _minutes == m,
+                  onTap: () {
+                    setState(() {
+                      _minutes = m;
+                      _minutesController.text = '$m';
+                    });
+                  },
+                ),
+              ),
               SizedBox(
                 width: 70,
                 height: 34,
@@ -164,10 +193,18 @@ class _ApprovalCardState extends State<ApprovalCard> {
                   controller: _minutesController,
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
                   decoration: InputDecoration(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     isDense: true,
                   ),
                   onChanged: (v) {
@@ -196,7 +233,9 @@ class _ApprovalCardState extends State<ApprovalCard> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.red,
                     side: const BorderSide(color: Colors.red),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
               ),
@@ -214,7 +253,9 @@ class _ApprovalCardState extends State<ApprovalCard> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: kAccentGreen,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
               ),
@@ -231,7 +272,11 @@ class _QuickChip extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _QuickChip({required this.label, required this.selected, required this.onTap});
+  const _QuickChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {

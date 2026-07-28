@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/constants.dart';
@@ -7,7 +6,8 @@ import 'parent_dashboard.dart';
 class ParentSetupScreen extends StatefulWidget {
   final String parentUid;
 
-  const ParentSetupScreen({Key? key, required this.parentUid}) : super(key: key);
+  const ParentSetupScreen({Key? key, required this.parentUid})
+    : super(key: key);
 
   @override
   _ParentSetupScreenState createState() => _ParentSetupScreenState();
@@ -15,7 +15,6 @@ class ParentSetupScreen extends StatefulWidget {
 
 class _ParentSetupScreenState extends State<ParentSetupScreen> {
   final _pinController = TextEditingController();
-
 
   Future<void> _finishSetup() async {
     if (_pinController.text.length != 5) {
@@ -25,13 +24,12 @@ class _ParentSetupScreenState extends State<ParentSetupScreen> {
       return;
     }
 
-    final parentRef = FirebaseFirestore.instance.collection('users').doc(widget.parentUid);
+    final parentRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.parentUid);
 
     // Save PIN and mark setup as complete
-    await parentRef.update({
-      'pin': _pinController.text,
-      'setupComplete': true,
-    });
+    await parentRef.update({'pin': _pinController.text, 'setupComplete': true});
 
     final parentDoc = await parentRef.get();
     final parentName = parentDoc.data()?['name'] ?? 'Parent';
@@ -46,17 +44,14 @@ class _ParentSetupScreenState extends State<ParentSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: kAccentGreen,
-      body: _buildPinPage(),
-    );
+    return Scaffold(backgroundColor: kAccentGreen, body: _buildPinPage());
   }
-
 
   Widget _buildPinPage() {
     return _buildSetupCard(
       title: 'Set Parental PIN',
-      subtitle: 'Create a 5-digit PIN to access parent settings and override limits.',
+      subtitle:
+          'Create a 5-digit PIN to access parent settings and override limits.',
       content: TextField(
         controller: _pinController,
         keyboardType: TextInputType.number,
@@ -93,10 +88,7 @@ class _ParentSetupScreenState extends State<ParentSetupScreen> {
               const SizedBox(height: 24),
               Expanded(child: content),
               const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: onContinue,
-                child: Text(continueText),
-              ),
+              ElevatedButton(onPressed: onContinue, child: Text(continueText)),
             ],
           ),
         ),
@@ -104,4 +96,3 @@ class _ParentSetupScreenState extends State<ParentSetupScreen> {
     );
   }
 }
-

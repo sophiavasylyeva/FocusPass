@@ -11,7 +11,8 @@ class NotificationService {
 
   static const String _notificationChannelId = 'screen_time_reminders';
   static const String _notificationChannelName = 'Screen Time Reminders';
-  static const String _notificationChannelDescription = 'Notifications about remaining screen time';
+  static const String _notificationChannelDescription =
+      'Notifications about remaining screen time';
 
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
@@ -26,9 +27,7 @@ class NotificationService {
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
     const InitializationSettings initializationSettings =
-        InitializationSettings(
-      android: initializationSettingsAndroid,
-    );
+        InitializationSettings(android: initializationSettingsAndroid);
 
     await _flutterLocalNotificationsPlugin.initialize(
       initializationSettings,
@@ -37,7 +36,7 @@ class NotificationService {
 
     // Create notification channel for Android
     await _createNotificationChannel();
-    
+
     // Request notification permission for Android 13+
     await _requestNotificationPermission();
 
@@ -55,8 +54,10 @@ class NotificationService {
     );
 
     final AndroidFlutterLocalNotificationsPlugin? androidPlugin =
-        _flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+        _flutterLocalNotificationsPlugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
 
     if (androidPlugin != null) {
       await androidPlugin.createNotificationChannel(channel);
@@ -66,8 +67,10 @@ class NotificationService {
   Future<void> _requestNotificationPermission() async {
     if (Platform.isAndroid) {
       final AndroidFlutterLocalNotificationsPlugin? androidPlugin =
-          _flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
+          _flutterLocalNotificationsPlugin
+              .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin
+              >();
 
       await androidPlugin?.requestNotificationsPermission();
       await androidPlugin?.requestExactAlarmsPermission();
@@ -76,22 +79,24 @@ class NotificationService {
 
   void _onNotificationTapped(NotificationResponse notificationResponse) {
     print('Notification tapped: ${notificationResponse.payload}');
-    
+
     // Handle different notification types
-    if (notificationResponse.payload == 'educational_tasks' || 
+    if (notificationResponse.payload == 'educational_tasks' ||
         notificationResponse.actionId == 'open_focuspass') {
-      print('Educational task notification tapped - attempting to open FocusPass');
+      print(
+        'Educational task notification tapped - attempting to open FocusPass',
+      );
       _openFocusPassApp();
     }
   }
-  
+
   /// Attempt to open or bring FocusPass to foreground
   void _openFocusPassApp() {
     try {
       // This is a simplified approach - ideally we'd use platform channels
       // to properly bring the app to foreground or launch it
       print('Attempting to open FocusPass app');
-      
+
       // For now, we'll rely on the notification action to guide users
       // In a production app, you'd implement platform-specific code
       // to actually launch or bring the app to foreground
@@ -112,16 +117,15 @@ class NotificationService {
     _notificationTimer?.cancel();
 
     // Start periodic timer for every 15 minutes
-    _notificationTimer = Timer.periodic(
-      const Duration(minutes: 15),
-      (timer) async {
-        final remainingTime = getRemainingTime(currentAppPackage);
-        await _showScreenTimeNotification(
-          appPackage: currentAppPackage,
-          remainingTime: remainingTime,
-        );
-      },
-    );
+    _notificationTimer = Timer.periodic(const Duration(minutes: 15), (
+      timer,
+    ) async {
+      final remainingTime = getRemainingTime(currentAppPackage);
+      await _showScreenTimeNotification(
+        appPackage: currentAppPackage,
+        remainingTime: remainingTime,
+      );
+    });
   }
 
   Future<void> _showScreenTimeNotification({
@@ -130,26 +134,28 @@ class NotificationService {
   }) async {
     // Get app name from package
     final appName = await _getAppNameFromPackage(appPackage);
-    
+
     // Don't show notification if time is unlimited or already exceeded
-    if (remainingTime.contains('unlimited') || remainingTime.contains('exceeded')) {
+    if (remainingTime.contains('unlimited') ||
+        remainingTime.contains('exceeded')) {
       return;
     }
 
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      _notificationChannelId,
-      _notificationChannelName,
-      channelDescription: _notificationChannelDescription,
-      importance: Importance.defaultImportance,
-      priority: Priority.defaultPriority,
-      icon: '@mipmap/ic_launcher',
-      enableVibration: true,
-      autoCancel: true,
-    );
+          _notificationChannelId,
+          _notificationChannelName,
+          channelDescription: _notificationChannelDescription,
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+          icon: '@mipmap/ic_launcher',
+          enableVibration: true,
+          autoCancel: true,
+        );
 
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
 
     await _flutterLocalNotificationsPlugin.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000, // Unique ID
@@ -182,19 +188,25 @@ class NotificationService {
 
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      _notificationChannelId,
-      _notificationChannelName,
-      channelDescription: _notificationChannelDescription,
-      importance: Importance.high,
-      priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
-      enableVibration: true,
-      autoCancel: true,
-      color: Color.fromARGB(255, 244, 67, 54), // Red color for exceeded time
-    );
+          _notificationChannelId,
+          _notificationChannelName,
+          channelDescription: _notificationChannelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          enableVibration: true,
+          autoCancel: true,
+          color: Color.fromARGB(
+            255,
+            244,
+            67,
+            54,
+          ), // Red color for exceeded time
+        );
 
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
 
     await _flutterLocalNotificationsPlugin.show(
       999999, // Fixed ID for time exceeded notifications
@@ -215,19 +227,20 @@ class NotificationService {
 
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      _notificationChannelId,
-      _notificationChannelName,
-      channelDescription: _notificationChannelDescription,
-      importance: Importance.high,
-      priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
-      enableVibration: true,
-      autoCancel: true,
-      color: Color.fromARGB(255, 255, 152, 0), // Orange color for warning
-    );
+          _notificationChannelId,
+          _notificationChannelName,
+          channelDescription: _notificationChannelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          enableVibration: true,
+          autoCancel: true,
+          color: Color.fromARGB(255, 255, 152, 0), // Orange color for warning
+        );
 
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
 
     await _flutterLocalNotificationsPlugin.show(
       888888, // Fixed ID for warning notifications
@@ -249,33 +262,39 @@ class NotificationService {
 
     final AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      _notificationChannelId,
-      _notificationChannelName,
-      channelDescription: _notificationChannelDescription,
-      importance: Importance.max, // Highest priority
-      priority: Priority.max,
-      icon: '@mipmap/ic_launcher',
-      enableVibration: true,
-      autoCancel: false, // Don't auto-cancel, force user interaction
-      ongoing: true, // Make it persistent
-      fullScreenIntent: true, // Show as full screen on some devices
-      color: Color.fromARGB(255, 76, 175, 80), // Green color for educational tasks
-      actions: [
-        AndroidNotificationAction(
-          'open_focuspass',
-          '📚 Complete Tasks',
-          cancelNotification: false,
-        ),
-        AndroidNotificationAction(
-          'dismiss',
-          'Later',
-          cancelNotification: true,
-        ),
-      ],
-    );
+          _notificationChannelId,
+          _notificationChannelName,
+          channelDescription: _notificationChannelDescription,
+          importance: Importance.max, // Highest priority
+          priority: Priority.max,
+          icon: '@mipmap/ic_launcher',
+          enableVibration: true,
+          autoCancel: false, // Don't auto-cancel, force user interaction
+          ongoing: true, // Make it persistent
+          fullScreenIntent: true, // Show as full screen on some devices
+          color: Color.fromARGB(
+            255,
+            76,
+            175,
+            80,
+          ), // Green color for educational tasks
+          actions: [
+            AndroidNotificationAction(
+              'open_focuspass',
+              '📚 Complete Tasks',
+              cancelNotification: false,
+            ),
+            AndroidNotificationAction(
+              'dismiss',
+              'Later',
+              cancelNotification: true,
+            ),
+          ],
+        );
 
-    final NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
+    final NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
 
     final taskText = pendingTaskCount == 1 ? 'task' : 'tasks';
     await _flutterLocalNotificationsPlugin.show(
@@ -299,21 +318,22 @@ class NotificationService {
 
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      _notificationChannelId,
-      _notificationChannelName,
-      channelDescription: _notificationChannelDescription,
-      importance: Importance.high,
-      priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
-      enableVibration: true,
-      autoCancel: true,
-      color: Color.fromARGB(255, 76, 175, 80), // Green for success
+          _notificationChannelId,
+          _notificationChannelName,
+          channelDescription: _notificationChannelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          enableVibration: true,
+          autoCancel: true,
+          color: Color.fromARGB(255, 76, 175, 80), // Green for success
+        );
+
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
     );
 
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
-
-    final timeText = totalRemainingMinutes > 60 
+    final timeText = totalRemainingMinutes > 60
         ? '${(totalRemainingMinutes / 60).floor()}h ${totalRemainingMinutes % 60}m'
         : '${totalRemainingMinutes}m';
 
@@ -338,28 +358,31 @@ class NotificationService {
 
     final AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      _notificationChannelId,
-      _notificationChannelName,
-      channelDescription: _notificationChannelDescription,
-      importance: isWarning ? Importance.high : Importance.defaultImportance,
-      priority: isWarning ? Priority.high : Priority.defaultPriority,
-      icon: '@mipmap/ic_launcher',
-      enableVibration: isWarning,
-      autoCancel: true,
-      color: isWarning 
-          ? Color.fromARGB(255, 255, 152, 0) // Orange for warning
-          : Color.fromARGB(255, 33, 150, 243), // Blue for info
+          _notificationChannelId,
+          _notificationChannelName,
+          channelDescription: _notificationChannelDescription,
+          importance: isWarning
+              ? Importance.high
+              : Importance.defaultImportance,
+          priority: isWarning ? Priority.high : Priority.defaultPriority,
+          icon: '@mipmap/ic_launcher',
+          enableVibration: isWarning,
+          autoCancel: true,
+          color: isWarning
+              ? Color.fromARGB(255, 255, 152, 0) // Orange for warning
+              : Color.fromARGB(255, 33, 150, 243), // Blue for info
+        );
+
+    final NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
     );
 
-    final NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
-
-    final timeText = remainingMinutes > 60 
+    final timeText = remainingMinutes > 60
         ? '${(remainingMinutes / 60).floor()}h ${remainingMinutes % 60}m'
         : '${remainingMinutes}m';
 
     final title = isWarning ? '⚠️ Screen Time Warning' : '⏰ Screen Time Update';
-    final message = isWarning 
+    final message = isWarning
         ? 'Only $timeText left for $appName today!'
         : 'You have $timeText remaining for $appName today';
 
@@ -385,33 +408,34 @@ class NotificationService {
 
     final AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      _notificationChannelId,
-      _notificationChannelName,
-      channelDescription: _notificationChannelDescription,
-      importance: Importance.max,
-      priority: Priority.max,
-      icon: '@mipmap/ic_launcher',
-      enableVibration: true,
-      autoCancel: false,
-      ongoing: true,
-      fullScreenIntent: true,
-      color: Color.fromARGB(255, 244, 67, 54), // Red for time expired
-      actions: [
-        AndroidNotificationAction(
-          'complete_more_tasks',
-          '📚 Learn More',
-          cancelNotification: false,
-        ),
-        AndroidNotificationAction(
-          'exit_app',
-          'Exit Application',
-          cancelNotification: true,
-        ),
-      ],
-    );
+          _notificationChannelId,
+          _notificationChannelName,
+          channelDescription: _notificationChannelDescription,
+          importance: Importance.max,
+          priority: Priority.max,
+          icon: '@mipmap/ic_launcher',
+          enableVibration: true,
+          autoCancel: false,
+          ongoing: true,
+          fullScreenIntent: true,
+          color: Color.fromARGB(255, 244, 67, 54), // Red for time expired
+          actions: [
+            AndroidNotificationAction(
+              'complete_more_tasks',
+              '📚 Learn More',
+              cancelNotification: false,
+            ),
+            AndroidNotificationAction(
+              'exit_app',
+              'Exit Application',
+              cancelNotification: true,
+            ),
+          ],
+        );
 
-    final NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
+    final NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
 
     await _flutterLocalNotificationsPlugin.zonedSchedule(
       999998, // Unique ID for scheduled session expiration
@@ -422,8 +446,10 @@ class NotificationService {
       payload: 'session_expired_scheduled',
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
-    
-    print('NotificationService: Scheduled session expiration notification for $appName at $scheduledDateTime');
+
+    print(
+      'NotificationService: Scheduled session expiration notification for $appName at $scheduledDateTime',
+    );
   }
 
   /// Show notification when screen time expires (after 15 min earned session)
@@ -437,32 +463,33 @@ class NotificationService {
 
     final AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      _notificationChannelId,
-      _notificationChannelName,
-      channelDescription: _notificationChannelDescription,
-      importance: Importance.max,
-      priority: Priority.max,
-      icon: '@mipmap/ic_launcher',
-      enableVibration: true,
-      autoCancel: false,
-      ongoing: true,
-      color: Color.fromARGB(255, 244, 67, 54), // Red for time expired
-      actions: [
-        AndroidNotificationAction(
-          'complete_more_tasks',
-          '📚 Learn More',
-          cancelNotification: false,
-        ),
-        AndroidNotificationAction(
-          'exit_app',
-          'Exit Application',
-          cancelNotification: true,
-        ),
-      ],
-    );
+          _notificationChannelId,
+          _notificationChannelName,
+          channelDescription: _notificationChannelDescription,
+          importance: Importance.max,
+          priority: Priority.max,
+          icon: '@mipmap/ic_launcher',
+          enableVibration: true,
+          autoCancel: false,
+          ongoing: true,
+          color: Color.fromARGB(255, 244, 67, 54), // Red for time expired
+          actions: [
+            AndroidNotificationAction(
+              'complete_more_tasks',
+              '📚 Learn More',
+              cancelNotification: false,
+            ),
+            AndroidNotificationAction(
+              'exit_app',
+              'Exit Application',
+              cancelNotification: true,
+            ),
+          ],
+        );
 
-    final NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
+    final NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
 
     await _flutterLocalNotificationsPlugin.show(
       444333, // Fixed ID for session expired notifications
@@ -483,8 +510,8 @@ class NotificationService {
       await initialize();
     }
 
-    final AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
+    final AndroidNotificationDetails
+    androidPlatformChannelSpecifics = AndroidNotificationDetails(
       _notificationChannelId,
       _notificationChannelName,
       channelDescription: _notificationChannelDescription,
@@ -522,8 +549,9 @@ class NotificationService {
       ],
     );
 
-    final NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
+    final NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
 
     await _flutterLocalNotificationsPlugin.show(
       666666, // Fixed ID for interception notifications
@@ -540,8 +568,8 @@ class NotificationService {
       await initialize();
     }
 
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
+    const AndroidNotificationDetails
+    androidPlatformChannelSpecifics = AndroidNotificationDetails(
       _notificationChannelId,
       _notificationChannelName,
       channelDescription: _notificationChannelDescription,
@@ -561,8 +589,9 @@ class NotificationService {
       ),
     );
 
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
 
     await _flutterLocalNotificationsPlugin.show(
       555555, // Fixed ID for completion notifications
@@ -584,21 +613,22 @@ class NotificationService {
 
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      _notificationChannelId,
-      _notificationChannelName,
-      channelDescription: _notificationChannelDescription,
-      importance: Importance.defaultImportance,
-      priority: Priority.defaultPriority,
-      icon: '@mipmap/ic_launcher',
-      enableVibration: false,
-      autoCancel: true,
-      color: Color.fromARGB(255, 33, 150, 243), // Blue for info
+          _notificationChannelId,
+          _notificationChannelName,
+          channelDescription: _notificationChannelDescription,
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+          icon: '@mipmap/ic_launcher',
+          enableVibration: false,
+          autoCancel: true,
+          color: Color.fromARGB(255, 33, 150, 243), // Blue for info
+        );
+
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
     );
 
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
-
-    final timeText = remainingMinutes > 60 
+    final timeText = remainingMinutes > 60
         ? '${(remainingMinutes / 60).floor()}h ${remainingMinutes % 60}m'
         : '${remainingMinutes}m';
 
@@ -619,8 +649,8 @@ class NotificationService {
       await initialize();
     }
 
-    final AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
+    final AndroidNotificationDetails
+    androidPlatformChannelSpecifics = AndroidNotificationDetails(
       _notificationChannelId,
       _notificationChannelName,
       channelDescription: _notificationChannelDescription,
@@ -655,8 +685,9 @@ class NotificationService {
       ],
     );
 
-    final NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
+    final NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
 
     await _flutterLocalNotificationsPlugin.show(
       333222, // Fixed ID for daily limit reached notifications
@@ -671,7 +702,9 @@ class NotificationService {
   Future<void> cancelScheduledSessionNotifications() async {
     try {
       await _flutterLocalNotificationsPlugin.cancel(999998);
-      print('NotificationService: Cancelled scheduled session expiration notification');
+      print(
+        'NotificationService: Cancelled scheduled session expiration notification',
+      );
     } catch (e) {
       print('NotificationService: Error cancelling scheduled notification: $e');
     }
@@ -690,19 +723,20 @@ class NotificationService {
 
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      _notificationChannelId,
-      _notificationChannelName,
-      channelDescription: _notificationChannelDescription,
-      importance: Importance.high,
-      priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
-      enableVibration: true,
-      autoCancel: true,
-      color: Color.fromARGB(255, 33, 150, 243), // Blue for reports
-    );
+          _notificationChannelId,
+          _notificationChannelName,
+          channelDescription: _notificationChannelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          enableVibration: true,
+          autoCancel: true,
+          color: Color.fromARGB(255, 33, 150, 243), // Blue for reports
+        );
 
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
 
     await _flutterLocalNotificationsPlugin.zonedSchedule(
       id,
@@ -712,7 +746,8 @@ class NotificationService {
       platformChannelSpecifics,
       payload: 'weekly_report',
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime, // Repeat weekly
+      matchDateTimeComponents:
+          DateTimeComponents.dayOfWeekAndTime, // Repeat weekly
     );
   }
 
@@ -729,19 +764,20 @@ class NotificationService {
 
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      _notificationChannelId,
-      _notificationChannelName,
-      channelDescription: _notificationChannelDescription,
-      importance: Importance.high,
-      priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
-      enableVibration: true,
-      autoCancel: true,
-      color: Color.fromARGB(255, 33, 150, 243),
-    );
+          _notificationChannelId,
+          _notificationChannelName,
+          channelDescription: _notificationChannelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          enableVibration: true,
+          autoCancel: true,
+          color: Color.fromARGB(255, 33, 150, 243),
+        );
 
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
 
     await _flutterLocalNotificationsPlugin.show(
       id,

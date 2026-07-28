@@ -20,7 +20,10 @@ class _TaskScreenState extends State<TaskScreen> {
     return Scaffold(
       backgroundColor: kAccentGreen,
       appBar: AppBar(
-        title: Text(widget.taskTitle, style: const TextStyle(color: Colors.white)),
+        title: Text(
+          widget.taskTitle,
+          style: const TextStyle(color: Colors.white),
+        ),
         backgroundColor: kDarkGreen,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -54,53 +57,44 @@ class _TaskScreenState extends State<TaskScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
-                    if (!_isCompleted) ...
-                      [
-                        const Text(
-                          'Complete this learning task to earn 15 minutes of screen time!',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
-                          ),
-                          textAlign: TextAlign.center,
+                    if (!_isCompleted) ...[
+                      const Text(
+                        'Complete this learning task to earn 15 minutes of screen time!',
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Task Instructions:',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
                         ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Task Instructions:',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: kAccentGreen.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: kAccentGreen.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: _getTaskInstructions(),
+                        child: _getTaskInstructions(),
+                      ),
+                    ] else ...[
+                      const Text(
+                        '🎉 Task Completed!',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
                         ),
-                      ]
-                    else ...
-                      [
-                        const Text(
-                          '🎉 Task Completed!',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'You earned 15 minutes of screen time!',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'You earned 15 minutes of screen time!',
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -140,10 +134,7 @@ class _TaskScreenState extends State<TaskScreen> {
                 ),
                 child: const Text(
                   'Back to Dashboard',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
           ],
@@ -156,21 +147,22 @@ class _TaskScreenState extends State<TaskScreen> {
     // Simple task instructions based on task title
     String instructions;
     if (widget.taskTitle.toLowerCase().contains('math')) {
-      instructions = '• Solve 5 math problems\n• Show your work\n• Check your answers';
+      instructions =
+          '• Solve 5 math problems\n• Show your work\n• Check your answers';
     } else if (widget.taskTitle.toLowerCase().contains('reading')) {
-      instructions = '• Read for 10 minutes\n• Summarize what you read\n• Discuss with a parent';
+      instructions =
+          '• Read for 10 minutes\n• Summarize what you read\n• Discuss with a parent';
     } else if (widget.taskTitle.toLowerCase().contains('science')) {
-      instructions = '• Complete science worksheet\n• Conduct a simple experiment\n• Record your observations';
+      instructions =
+          '• Complete science worksheet\n• Conduct a simple experiment\n• Record your observations';
     } else {
-      instructions = '• Complete the assigned activity\n• Take notes if needed\n• Ask questions if confused';
+      instructions =
+          '• Complete the assigned activity\n• Take notes if needed\n• Ask questions if confused';
     }
 
     return Text(
       instructions,
-      style: const TextStyle(
-        fontSize: 14,
-        height: 1.5,
-      ),
+      style: const TextStyle(fontSize: 14, height: 1.5),
     );
   }
 
@@ -182,7 +174,7 @@ class _TaskScreenState extends State<TaskScreen> {
     try {
       // Add earned screen time (15 minutes)
       await UnifiedScreenTimeService.addEarnedTime(15.0);
-      
+
       setState(() {
         _isCompleted = true;
         _isLoading = false;
@@ -191,7 +183,9 @@ class _TaskScreenState extends State<TaskScreen> {
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('🎉 Task completed! You earned 15 minutes of screen time!'),
+          content: Text(
+            '🎉 Task completed! You earned 15 minutes of screen time!',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -199,7 +193,7 @@ class _TaskScreenState extends State<TaskScreen> {
       setState(() {
         _isLoading = false;
       });
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error completing task: $e'),

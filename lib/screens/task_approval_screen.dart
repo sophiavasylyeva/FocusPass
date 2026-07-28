@@ -44,7 +44,10 @@ class _TaskApprovalScreenState extends State<TaskApprovalScreen> {
     return Scaffold(
       backgroundColor: kAccentGreen,
       appBar: AppBar(
-        title: const Text('Task Submissions', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Task Submissions',
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: kDarkGreen,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
@@ -69,43 +72,54 @@ class _TaskApprovalScreenState extends State<TaskApprovalScreen> {
                   else ...[
                     const _SectionLabel(text: 'PENDING REVIEW'),
                     const SizedBox(height: 10),
-                    ..._pending.map((t) => Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: ApprovalCard(
-                            task: t,
-                            onApprove: (minutes) async {
-                              await _service.approveTask(t.id, t.childName, minutes);
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                        '✅ Approved +${_fmt(minutes)} for ${t.childName}'),
-                                    backgroundColor: Colors.green,
+                    ..._pending.map(
+                      (t) => Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: ApprovalCard(
+                          task: t,
+                          onApprove: (minutes) async {
+                            await _service.approveTask(
+                              t.id,
+                              t.childName,
+                              minutes,
+                            );
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    '✅ Approved +${_fmt(minutes)} for ${t.childName}',
                                   ),
-                                );
-                              }
-                              _loadTasks();
-                            },
-                            onReject: () async {
-                              await _service.rejectTask(t.id);
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Activity declined')),
-                                );
-                              }
-                              _loadTasks();
-                            },
-                          ),
-                        )),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                            _loadTasks();
+                          },
+                          onReject: () async {
+                            await _service.rejectTask(t.id);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Activity declined'),
+                                ),
+                              );
+                            }
+                            _loadTasks();
+                          },
+                        ),
+                      ),
+                    ),
                   ],
                   if (_history.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     const _SectionLabel(text: 'HISTORY'),
                     const SizedBox(height: 10),
-                    ..._history.map((t) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _HistoryRow(task: t),
-                        )),
+                    ..._history.map(
+                      (t) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _HistoryRow(task: t),
+                      ),
+                    ),
                   ],
                 ],
               ),
@@ -127,7 +141,9 @@ class _TaskApprovalScreenState extends State<TaskApprovalScreen> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: pendingCount > 0 ? Colors.orange : Colors.greenAccent.withOpacity(0.2),
+              color: pendingCount > 0
+                  ? Colors.orange
+                  : Colors.greenAccent.withOpacity(0.2),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -140,7 +156,11 @@ class _TaskApprovalScreenState extends State<TaskApprovalScreen> {
                         fontSize: 20,
                       ),
                     )
-                  : const Icon(Icons.check, color: Colors.greenAccent, size: 24),
+                  : const Icon(
+                      Icons.check,
+                      color: Colors.greenAccent,
+                      size: 24,
+                    ),
             ),
           ),
           const SizedBox(width: 16),
@@ -183,7 +203,11 @@ class _TaskApprovalScreenState extends State<TaskApprovalScreen> {
           SizedBox(height: 16),
           Text(
             'No pending submissions',
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           SizedBox(height: 8),
           Text(
@@ -254,7 +278,10 @@ class _HistoryRow extends StatelessWidget {
                 Text(
                   task.title,
                   style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
                 ),
                 Text(
                   task.childName,

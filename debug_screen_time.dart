@@ -11,7 +11,7 @@ void main() async {
 Future<void> testScreenTimeDebug(String childName) async {
   try {
     print('=== DEBUG: Testing Screen Time Data ===');
-    
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       print('ERROR: No user logged in');
@@ -24,7 +24,7 @@ Future<void> testScreenTimeDebug(String childName) async {
         .collection('children')
         .doc(childName)
         .get();
-    
+
     if (!childDoc.exists) {
       print('ERROR: Child document does not exist for $childName');
       return;
@@ -32,7 +32,7 @@ Future<void> testScreenTimeDebug(String childName) async {
 
     final childData = childDoc.data()!;
     final Map<String, dynamic> appLimits = childData['appLimits'] ?? {};
-    
+
     print('Firestore App Limits:');
     appLimits.forEach((appName, limitData) {
       if (limitData is Map<String, dynamic>) {
@@ -40,11 +40,12 @@ Future<void> testScreenTimeDebug(String childName) async {
         print('  $appName: ${limitMinutes}m daily limit');
       }
     });
-    
+
     // Also check what UnifiedScreenTimeService returns
     // Note: This would need proper imports in a real test
-    print('\nThis script would need to be integrated into the Flutter app to test UnifiedScreenTimeService');
-    
+    print(
+      '\nThis script would need to be integrated into the Flutter app to test UnifiedScreenTimeService',
+    );
   } catch (e) {
     print('ERROR: $e');
   }

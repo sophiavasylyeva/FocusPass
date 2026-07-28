@@ -26,11 +26,16 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
   Future<void> _navigateToParentDashboard() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
       final parentName = doc.data()?['name'] ?? 'Parent';
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => ParentDashboardScreen(parentName: parentName)),
+        MaterialPageRoute(
+          builder: (context) => ParentDashboardScreen(parentName: parentName),
+        ),
         (route) => false,
       );
     }
@@ -43,7 +48,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
           .collection('users')
           .doc(user.uid)
           .get();
-      
+
       if (doc.exists && mounted) {
         setState(() {
           _currentPin = doc.data()?['pin'];
@@ -61,9 +66,9 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
     }
 
     if (_pinController.text != _confirmPinController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PINs do not match')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('PINs do not match')));
       return;
     }
 
@@ -91,9 +96,9 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving PIN: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error saving PIN: $e')));
       }
     } finally {
       if (mounted) {
@@ -133,14 +138,12 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
                   children: [
-                    Icon(
-                      Icons.security,
-                      size: 64,
-                      color: kAccentBlue,
-                    ),
+                    Icon(Icons.security, size: 64, color: kAccentBlue),
                     const SizedBox(height: 16),
                     Text(
-                      _currentPin != null ? 'Update Your PIN' : 'Create Your PIN',
+                      _currentPin != null
+                          ? 'Update Your PIN'
+                          : 'Create Your PIN',
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -212,10 +215,14 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
                           ),
                         ),
                         child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
                             : Text(
                                 _currentPin != null ? 'Update PIN' : 'Set PIN',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                       ),
                     ),

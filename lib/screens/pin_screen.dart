@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 class PinScreen extends StatefulWidget {
@@ -16,9 +15,7 @@ class _PinScreenState extends State<PinScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Enter PIN'),
-      ),
+      appBar: AppBar(title: const Text('Enter PIN')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -48,4 +45,3 @@ class _PinScreenState extends State<PinScreen> {
     );
   }
 }
-

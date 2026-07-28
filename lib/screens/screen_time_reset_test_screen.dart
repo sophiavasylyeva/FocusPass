@@ -5,7 +5,8 @@ class ScreenTimeResetTestScreen extends StatefulWidget {
   const ScreenTimeResetTestScreen({Key? key}) : super(key: key);
 
   @override
-  State<ScreenTimeResetTestScreen> createState() => _ScreenTimeResetTestScreenState();
+  State<ScreenTimeResetTestScreen> createState() =>
+      _ScreenTimeResetTestScreenState();
 }
 
 class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
@@ -54,7 +55,7 @@ class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
         _statusMessage = 'Daily reset completed successfully!';
         _usageStats.clear(); // Clear the displayed stats
       });
-      
+
       // Reload stats to show the reset
       await Future.delayed(const Duration(seconds: 1));
       await _loadUsageStats();
@@ -78,10 +79,11 @@ class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
     try {
       await UnifiedScreenTimeService.forceCompleteReset();
       setState(() {
-        _statusMessage = 'Complete force reset completed! All screen time data has been cleared.';
+        _statusMessage =
+            'Complete force reset completed! All screen time data has been cleared.';
         _usageStats.clear(); // Clear the displayed stats
       });
-      
+
       // Reload stats to show the reset
       await Future.delayed(const Duration(seconds: 1));
       await _loadUsageStats();
@@ -98,16 +100,20 @@ class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
 
   String _formatTime(dynamic milliseconds) {
     if (milliseconds == null || milliseconds == 0) return '0m';
-    
-    final ms = milliseconds is int ? milliseconds : (milliseconds as double).toInt();
+
+    final ms = milliseconds is int
+        ? milliseconds
+        : (milliseconds as double).toInt();
     final minutes = (ms / (1000 * 60)).round();
-    
+
     if (minutes < 60) {
       return '${minutes}m';
     } else {
       final hours = (minutes / 60).floor();
       final remainingMinutes = minutes % 60;
-      return remainingMinutes > 0 ? '${hours}h ${remainingMinutes}m' : '${hours}h';
+      return remainingMinutes > 0
+          ? '${hours}h ${remainingMinutes}m'
+          : '${hours}h';
     }
   }
 
@@ -134,16 +140,18 @@ class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                _statusMessage.isEmpty ? 'Ready to test daily reset functionality' : _statusMessage,
+                _statusMessage.isEmpty
+                    ? 'Ready to test daily reset functionality'
+                    : _statusMessage,
                 style: TextStyle(
                   color: Colors.blue[800],
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Action buttons
             Column(
               children: [
@@ -194,13 +202,19 @@ class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : () {
-                      setState(() {
-                        _showDebugInfo = !_showDebugInfo;
-                      });
-                    },
-                    icon: Icon(_showDebugInfo ? Icons.visibility_off : Icons.visibility),
-                    label: Text(_showDebugInfo ? 'Hide Debug Info' : 'Show Debug Info'),
+                    onPressed: _isLoading
+                        ? null
+                        : () {
+                            setState(() {
+                              _showDebugInfo = !_showDebugInfo;
+                            });
+                          },
+                    icon: Icon(
+                      _showDebugInfo ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    label: Text(
+                      _showDebugInfo ? 'Hide Debug Info' : 'Show Debug Info',
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.purple,
                       foregroundColor: Colors.white,
@@ -210,9 +224,9 @@ class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Debug information
             if (_showDebugInfo) ...[
               Container(
@@ -247,39 +261,43 @@ class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
                       'Apps Found: ${_usageStats.length}',
                       style: TextStyle(color: Colors.purple[700], fontSize: 12),
                     ),
-                    if (_usageStats.isNotEmpty)
-                      ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          'Raw Data:',
-                          style: TextStyle(color: Colors.purple[800], fontWeight: FontWeight.bold, fontSize: 12),
+                    if (_usageStats.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Raw Data:',
+                        style: TextStyle(
+                          color: Colors.purple[800],
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
                         ),
-                        ..._usageStats.entries.map((entry) => 
-                          Text(
-                            '${entry.key}: ${entry.value}',
-                            style: TextStyle(color: Colors.purple[600], fontSize: 10, fontFamily: 'monospace'),
-                          )
+                      ),
+                      ..._usageStats.entries.map(
+                        (entry) => Text(
+                          '${entry.key}: ${entry.value}',
+                          style: TextStyle(
+                            color: Colors.purple[600],
+                            fontSize: 10,
+                            fontFamily: 'monospace',
+                          ),
                         ),
-                      ],
+                      ),
+                    ],
                   ],
                 ),
               ),
               const SizedBox(height: 16),
             ],
-            
+
             // Loading indicator
-            if (_isLoading)
-              const Center(
-                child: CircularProgressIndicator(),
-              ),
-            
+            if (_isLoading) const Center(child: CircularProgressIndicator()),
+
             // Usage stats display
             if (!_isLoading && _usageStats.isNotEmpty) ...[
               Text(
                 'Current Screen Time Usage',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               Expanded(
@@ -288,7 +306,7 @@ class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
                   itemBuilder: (context, index) {
                     final appName = _usageStats.keys.elementAt(index);
                     final appData = _usageStats[appName];
-                    
+
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
                       child: Padding(
@@ -312,16 +330,18 @@ class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: appData['isBlocked'] == true 
-                                        ? Colors.red[100] 
+                                    color: appData['isBlocked'] == true
+                                        ? Colors.red[100]
                                         : Colors.green[100],
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
-                                    appData['isBlocked'] == true ? 'BLOCKED' : 'ACTIVE',
+                                    appData['isBlocked'] == true
+                                        ? 'BLOCKED'
+                                        : 'ACTIVE',
                                     style: TextStyle(
-                                      color: appData['isBlocked'] == true 
-                                          ? Colors.red[800] 
+                                      color: appData['isBlocked'] == true
+                                          ? Colors.red[800]
                                           : Colors.green[800],
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
@@ -337,23 +357,40 @@ class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('Used Today', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                    const Text(
+                                      'Used Today',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
                                     Text(
                                       _formatTime(appData['usedTime']),
-                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ],
                                 ),
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    const Text('Remaining', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                    const Text(
+                                      'Remaining',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
                                     Text(
                                       _formatTime(appData['remainingTime']),
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w600,
-                                        color: appData['isBlocked'] == true ? Colors.red : Colors.green,
+                                        color: appData['isBlocked'] == true
+                                            ? Colors.red
+                                            : Colors.green,
                                       ),
                                     ),
                                   ],
@@ -366,11 +403,17 @@ class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
                               children: [
                                 Text(
                                   'Daily Limit: ${_formatTime(appData['dailyLimit'])}',
-                                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
                                 ),
                                 Text(
                                   'Earned: ${_formatTime(appData['earnedTime'])}',
-                                  style: const TextStyle(fontSize: 12, color: Colors.blue),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.blue,
+                                  ),
                                 ),
                               ],
                             ),
@@ -382,7 +425,7 @@ class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
                 ),
               ),
             ],
-            
+
             // Empty state
             if (!_isLoading && _usageStats.isEmpty) ...[
               Expanded(
@@ -398,18 +441,12 @@ class _ScreenTimeResetTestScreenState extends State<ScreenTimeResetTestScreen> {
                       const SizedBox(height: 16),
                       Text(
                         'No usage data available',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 18, color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Use some restricted apps first, then reload stats',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[500],
-                        ),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                         textAlign: TextAlign.center,
                       ),
                     ],

@@ -9,6 +9,4 @@ const Color kMintGreen = Color(0xFFCCFFCC);
 const Color kDarkGreen = Color(0xFF388E3C);
 const Color kBackgroundWhite = Colors.white;
 
-
-
 const double kDefaultPadding = 16.0;
