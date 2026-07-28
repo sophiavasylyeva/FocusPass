@@ -1,0 +1,34 @@
+# Build output
+lib/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+ui-debug.log
+
+# Emulator data / exports
+emulator-data/
+firestore-debug.log
+firestore-export/
+*.emulator-export/
+
+# Service accounts / credentials — never commit these
+serviceAccountKey.json
+*serviceAccount*.json
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+
+# Editor
+.vscode/
+.idea/
+
+# Coverage
+coverage/
