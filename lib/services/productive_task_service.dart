@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/productive_task.dart';
+import '../utils/screen_time_rules_lookup.dart';
 import 'unified_screen_time_service.dart';
 
 class ProductiveTaskService {
@@ -15,11 +16,19 @@ class ProductiveTaskService {
     }
   }
 
-  Future<List<ProductiveTask>> getSubmissionsForChild(String childName) async {
+  /// Fetches submissions owned by this child. Ownership is determined ONLY
+  /// by [parentUid] + [childId] — never by display name. Documents written
+  /// before this migration may not carry [childId] yet and simply won't
+  /// match this query (see ProductiveTask.fromMap).
+  Future<List<ProductiveTask>> getSubmissionsForChild({
+    required String parentUid,
+    required String childId,
+  }) async {
     try {
       final snapshot = await _firestore
           .collection(_collection)
-          .where('childName', isEqualTo: childName)
+          .where('parentUid', isEqualTo: parentUid)
+          .where('childId', isEqualTo: childId)
           .get();
       final tasks = snapshot.docs
           .map((doc) => ProductiveTask.fromMap(doc.id, doc.data()))
@@ -32,7 +41,9 @@ class ProductiveTaskService {
     }
   }
 
-  Future<List<ProductiveTask>> getAllSubmissionsForParent(String parentUid) async {
+  Future<List<ProductiveTask>> getAllSubmissionsForParent(
+    String parentUid,
+  ) async {
     try {
       final snapshot = await _firestore
           .collection(_collection)
@@ -49,7 +60,11 @@ class ProductiveTaskService {
     }
   }
 
-  Future<void> approveTask(String taskId, String childName, int awardedMinutes) async {
+  Future<void> approveTask(
+    String taskId,
+    String childName,
+    int awardedMinutes,
+  ) async {
     try {
       await _firestore.collection(_collection).doc(taskId).update({
         'status': 'approved',
@@ -76,24 +91,39 @@ class ProductiveTaskService {
     }
   }
 
-  static String generateTaskId(String childName) {
-    return '${childName}_task_${DateTime.now().millisecondsSinceEpoch}';
+  static String generateTaskId(String childId) {
+    return '${childId}_task_${DateTime.now().millisecondsSinceEpoch}';
   }
 
-  Future<int> getApprovedMinutesToday(String childName) async {
-    final all = await getSubmissionsForChild(childName);
+  Future<int> getApprovedMinutesToday({
+    required String parentUid,
+    required String childId,
+  }) async {
+    final all = await getSubmissionsForChild(
+      parentUid: parentUid,
+      childId: childId,
+    );
     final today = DateTime.now();
     return all
-        .where((t) =>
-            t.status == 'approved' &&
-            t.resolvedAt != null &&
-            t.resolvedAt!.year == today.year &&
-            t.resolvedAt!.month == today.month &&
-            t.resolvedAt!.day == today.day)
+        .where(
+          (t) =>
+              t.status == 'approved' &&
+              t.resolvedAt != null &&
+              t.resolvedAt!.year == today.year &&
+              t.resolvedAt!.month == today.month &&
+              t.resolvedAt!.day == today.day,
+        )
         .fold<int>(0, (sum, t) => sum + (t.awardedMinutes ?? 0));
   }
 
-  Future<double> getDailyCapHours(String parentUid, String childName) async {
+  /// Reads a child's daily cap. Prefers `children[childId]`, falling back
+  /// to the legacy `children[childName]` entry, and only then to the
+  /// existing 2.0h default — see [resolveChildRuleEntry].
+  Future<double> getDailyCapHours({
+    required String parentUid,
+    required String childId,
+    required String childName,
+  }) async {
     try {
       final doc = await _firestore
           .collection('users')
@@ -108,15 +138,36 @@ class ProductiveTaskService {
         return (data['unifiedRules']?['limit'] ?? 2.0).toDouble();
       }
       final childrenData = data['children'] as Map<String, dynamic>? ?? {};
-      return (childrenData[childName]?['limit'] ?? 2.0).toDouble();
+      final entry = resolveChildRuleEntry(
+        childrenData: childrenData,
+        parentUid: parentUid,
+        childId: childId,
+        displayName: childName,
+      );
+      return (entry?['limit'] ?? 2.0).toDouble();
     } catch (e) {
       print('❌ Error fetching daily cap: $e');
       return 2.0;
     }
   }
 
-  Future<void> setChildDailyCapHours(
-      String parentUid, String childName, double hours) async {
+  /// Sets a child's daily cap. Preserves every other field on the document
+  /// (`applySameForAll` is explicitly re-asserted as false since setting an
+  /// individual cap implies per-child mode, but `unifiedRules` and every
+  /// other child's entry in `children` are read back and re-written
+  /// unchanged via [SetOptions.merge]).
+  ///
+  /// TEMPORARY dual-write: writes both `children[childId]` and
+  /// `children[childName]` with identical settings, so readers that
+  /// haven't migrated yet (or documents predating this migration) keep
+  /// working. Remove the childName-keyed write once a backfill confirms
+  /// every reader and every existing document has a childId-keyed entry.
+  Future<void> setChildDailyCapHours({
+    required String parentUid,
+    required String childId,
+    required String childName,
+    required double hours,
+  }) async {
     final ref = _firestore
         .collection('users')
         .doc(parentUid)
@@ -127,7 +178,10 @@ class ProductiveTaskService {
     final childrenData = doc.exists
         ? Map<String, dynamic>.from(doc.data()?['children'] ?? {})
         : <String, dynamic>{};
-    childrenData[childName] = {'limit': hours};
+
+    final settings = {'displayName': childName, 'limit': hours};
+    childrenData[childId] = settings;
+    childrenData[childName] = settings;
 
     await ref.set({
       'applySameForAll': false,

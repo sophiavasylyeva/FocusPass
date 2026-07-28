@@ -7,11 +7,21 @@ import 'unified_screen_time_service.dart';
 class EducationalTaskService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<List<EducationalTask>> fetchTasks(String childName) async {
+  /// Fetches every educational_tasks document owned by this child.
+  ///
+  /// Ownership is determined ONLY by [parentUid] + [childId] — never by
+  /// display name. Documents written before this migration may not carry
+  /// these fields yet (see EducationalTask.fromMap); such legacy documents
+  /// simply won't match this query and are not silently guessed at.
+  Future<List<EducationalTask>> fetchTasks({
+    required String parentUid,
+    required String childId,
+  }) async {
     try {
       final querySnapshot = await _firestore
           .collection('educational_tasks')
-          .where('childName', isEqualTo: childName)
+          .where('parentUid', isEqualTo: parentUid)
+          .where('childId', isEqualTo: childId)
           .get();
 
       return querySnapshot.docs
@@ -36,8 +46,10 @@ class EducationalTaskService {
 
   Future<bool> completeTask(EducationalTask task) async {
     try {
-      print('EducationalTaskService: Completing task ${task.id} for ${task.childName}');
-      
+      print(
+        'EducationalTaskService: Completing task ${task.id} for childId ${task.childId}',
+      );
+
       final updatedTask = task.copyWith(
         isCompleted: true,
         completedAt: DateTime.now(),
@@ -47,50 +59,66 @@ class EducationalTaskService {
           .collection('educational_tasks')
           .doc(task.id)
           .update(updatedTask.toMap());
-      
-      print('EducationalTaskService: Task ${task.id} marked as completed in database');
+
+      print(
+        'EducationalTaskService: Task ${task.id} marked as completed in database',
+      );
 
       // Check if this completes a set of 5 tasks
-      final childName = task.childName;
-      final tasks = await fetchTasks(childName);
+      final tasks = await fetchTasks(
+        parentUid: task.parentUid,
+        childId: task.childId,
+      );
       final today = DateTime.now();
-      
+
       final completedTasksToday = tasks.where((t) {
-        return t.isCompleted && 
-               t.completedAt != null &&
-               t.completedAt!.day == today.day &&
-               t.completedAt!.month == today.month &&
-               t.completedAt!.year == today.year;
+        return t.isCompleted &&
+            t.completedAt != null &&
+            t.completedAt!.day == today.day &&
+            t.completedAt!.month == today.month &&
+            t.completedAt!.year == today.year;
       }).toList();
 
-      print('EducationalTaskService: Child $childName has completed ${completedTasksToday.length} tasks today');
-      print('EducationalTaskService: Completed task IDs: ${completedTasksToday.map((t) => t.id).toList()}');
+      print(
+        'EducationalTaskService: childId ${task.childId} has completed ${completedTasksToday.length} tasks today',
+      );
+      print(
+        'EducationalTaskService: Completed task IDs: ${completedTasksToday.map((t) => t.id).toList()}',
+      );
       print('EducationalTaskService: Total tasks found: ${tasks.length}');
 
       // Show appropriate notification and handle task generation
       if (completedTasksToday.length == 5) {
         // Completed exactly 5 tasks - NOW they earn exactly 15 minutes!
-        print('EducationalTaskService: Completed exactly 5 tasks - 15 minutes earned!');
-        
+        print(
+          'EducationalTaskService: Completed exactly 5 tasks - 15 minutes earned!',
+        );
+
         // Grant exactly 15 minutes of screen time through the unified service
         try {
           await UnifiedScreenTimeService.addEarnedTime(15.0);
-          print('EducationalTaskService: Added exactly 15 minutes to earned time');
+          print(
+            'EducationalTaskService: Added exactly 15 minutes to earned time',
+          );
         } catch (e) {
           print('EducationalTaskService: Error adding earned time: $e');
         }
-        
+
         // Temporarily disabled automatic task generation to debug task overlap
-        // await _generateNextTaskSet(childName);
-        print('EducationalTaskService: Automatic next task generation disabled for debugging');
-        
+        // await _generateNextTaskSet(parentUid: task.parentUid, childId: task.childId, childName: task.childName);
+        print(
+          'EducationalTaskService: Automatic next task generation disabled for debugging',
+        );
+
         return true; // Indicate that 5 tasks were completed
       } else {
         // Completed individual task - NO screen time yet
         final tasksNeeded = 5 - completedTasksToday.length;
         final completedInCurrentSet = completedTasksToday.length;
-        print('EducationalTaskService: Individual task completed ($completedInCurrentSet/5) - no screen time granted yet');
-        
+        print(
+          'EducationalTaskService: Individual task completed ($completedInCurrentSet/5) - no screen time granted yet',
+        );
+
         return false; // Indicate that 5 tasks were not completed yet
       }
     } catch (e) {
@@ -99,62 +127,86 @@ class EducationalTaskService {
     }
   }
 
-  Future<void> checkTasksAndNotify(String childName) async {
-    final tasks = await fetchTasks(childName);
+  Future<void> checkTasksAndNotify({
+    required String parentUid,
+    required String childId,
+  }) async {
+    final tasks = await fetchTasks(parentUid: parentUid, childId: childId);
 
     final pendingTasks = tasks.where((t) => !t.isCompleted);
 
     if (pendingTasks.isNotEmpty) {
-      print('EducationalTaskService: ${pendingTasks.length} tasks pending for $childName');
+      print(
+        'EducationalTaskService: ${pendingTasks.length} tasks pending for childId $childId',
+      );
     }
   }
 
-  Future<bool> hasPendingTasks(String childName) async {
-    final tasks = await fetchTasks(childName);
+  Future<bool> hasPendingTasks({
+    required String parentUid,
+    required String childId,
+  }) async {
+    final tasks = await fetchTasks(parentUid: parentUid, childId: childId);
     final today = DateTime.now();
-    
+
     // Check if there are any pending tasks for today
-    final todayPendingTasks = tasks.where((task) => 
-      task.assignedAt.day == today.day &&
-      task.assignedAt.month == today.month &&
-      task.assignedAt.year == today.year &&
-      !task.isCompleted
-    ).toList();
-    
-    print('EducationalTaskService: hasPendingTasks - Found ${todayPendingTasks.length} pending tasks for today');
+    final todayPendingTasks = tasks
+        .where(
+          (task) =>
+              task.assignedAt.day == today.day &&
+              task.assignedAt.month == today.month &&
+              task.assignedAt.year == today.year &&
+              !task.isCompleted,
+        )
+        .toList();
+
+    print(
+      'EducationalTaskService: hasPendingTasks - Found ${todayPendingTasks.length} pending tasks for today',
+    );
     return todayPendingTasks.isNotEmpty;
   }
 
   /// Clear all tasks for a child (for testing purposes)
-  Future<void> clearAllTasks(String childName) async {
+  Future<void> clearAllTasks({
+    required String parentUid,
+    required String childId,
+  }) async {
     try {
       final querySnapshot = await _firestore
           .collection('educational_tasks')
-          .where('childName', isEqualTo: childName)
+          .where('parentUid', isEqualTo: parentUid)
+          .where('childId', isEqualTo: childId)
           .get();
 
       for (final doc in querySnapshot.docs) {
         await doc.reference.delete();
       }
-      print('🗑️ Cleared ${querySnapshot.docs.length} tasks for $childName');
+      print(
+        '🗑️ Cleared ${querySnapshot.docs.length} tasks for childId $childId',
+      );
     } catch (e) {
       print('❌ Error clearing tasks: $e');
     }
   }
 
-  Future<void> clearTodaysPendingTasks(String childName) async {
+  Future<void> clearTodaysPendingTasks({
+    required String parentUid,
+    required String childId,
+  }) async {
     try {
       final today = DateTime.now();
       final querySnapshot = await _firestore
           .collection('educational_tasks')
-          .where('childName', isEqualTo: childName)
+          .where('parentUid', isEqualTo: parentUid)
+          .where('childId', isEqualTo: childId)
           .where('isCompleted', isEqualTo: false)
           .get();
 
       int deleted = 0;
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
-        final assignedAt = (data['assignedAt'] as dynamic)?.toDate() as DateTime?;
+        final assignedAt =
+            (data['assignedAt'] as dynamic)?.toDate() as DateTime?;
         if (assignedAt != null &&
             assignedAt.year == today.year &&
             assignedAt.month == today.month &&
@@ -163,50 +215,79 @@ class EducationalTaskService {
           deleted++;
         }
       }
-      print('🗑️ Cleared $deleted pending tasks for today ($childName)');
+      print('🗑️ Cleared $deleted pending tasks for today (childId $childId)');
     } catch (e) {
       print('❌ Error clearing today\'s pending tasks: $e');
     }
   }
 
-  Future<void> generateDailyTasks(String childName, List<String> subjects, String ageRange) async {
-    final existingTasks = await fetchTasks(childName);
+  Future<void> generateDailyTasks({
+    required String parentUid,
+    required String childId,
+    required String childName,
+    required List<String> subjects,
+    required String ageRange,
+  }) async {
+    final existingTasks = await fetchTasks(
+      parentUid: parentUid,
+      childId: childId,
+    );
     final today = DateTime.now();
-    
+
     print('🔄 generateDailyTasks: Checking for existing tasks...');
-    print('🔄 generateDailyTasks: Found ${existingTasks.length} existing tasks');
-    print('🔄 generateDailyTasks: Child name: $childName');
+    print(
+      '🔄 generateDailyTasks: Found ${existingTasks.length} existing tasks',
+    );
+    print('🔄 generateDailyTasks: childId: $childId');
     print('🔄 generateDailyTasks: Subjects received: $subjects');
     print('🔄 generateDailyTasks: Age range: $ageRange');
-    
-    // Check if we already have 5 pending tasks for today
-    final todayPendingTasks = existingTasks.where((task) => 
-      task.assignedAt.day == today.day &&
-      task.assignedAt.month == today.month &&
-      task.assignedAt.year == today.year &&
-      !task.isCompleted  // Only count uncompleted tasks
-    ).toList();
 
-    print('🔄 generateDailyTasks: Found ${todayPendingTasks.length} pending tasks for today');
+    // Check if we already have 5 pending tasks for today
+    final todayPendingTasks = existingTasks
+        .where(
+          (task) =>
+              task.assignedAt.day == today.day &&
+              task.assignedAt.month == today.month &&
+              task.assignedAt.year == today.year &&
+              !task.isCompleted, // Only count uncompleted tasks
+        )
+        .toList();
+
+    print(
+      '🔄 generateDailyTasks: Found ${todayPendingTasks.length} pending tasks for today',
+    );
 
     if (todayPendingTasks.length >= 5) {
-      print('🔄 generateDailyTasks: Already have ${todayPendingTasks.length} pending tasks for today, skipping generation');
+      print(
+        '🔄 generateDailyTasks: Already have ${todayPendingTasks.length} pending tasks for today, skipping generation',
+      );
       return; // Already have enough pending tasks for today
     }
 
     // Generate exactly 5 individual tasks (each with 1 question)
     final tasksToGenerate = 5 - todayPendingTasks.length;
     print('🔄 generateDailyTasks: Generating $tasksToGenerate new tasks');
-    print('🔄 generateDailyTasks: Available subjects for task generation: $subjects');
-    
+    print(
+      '🔄 generateDailyTasks: Available subjects for task generation: $subjects',
+    );
+
     for (int i = 0; i < tasksToGenerate; i++) {
       // Cycle through subjects to ensure variety
       final subject = subjects[i % subjects.length];
-      print('🔄 generateDailyTasks: Task ${i + 1} - Using subject: $subject (index: ${i % subjects.length} from ${subjects.length} subjects)');
-      final question = await _getUnusedQuestionForSubject(childName, subject, ageRange);
-      
+      print(
+        '🔄 generateDailyTasks: Task ${i + 1} - Using subject: $subject (index: ${i % subjects.length} from ${subjects.length} subjects)',
+      );
+      final question = await _getUnusedQuestionForSubject(
+        parentUid,
+        childId,
+        subject,
+        ageRange,
+      );
+
       final task = EducationalTask(
-        id: '${childName}_question_${today.millisecondsSinceEpoch}_$i',
+        id: '${childId}_question_${today.millisecondsSinceEpoch}_$i',
+        parentUid: parentUid,
+        childId: childId,
         childName: childName,
         subject: subject,
         questions: [question],
@@ -214,44 +295,78 @@ class EducationalTaskService {
         screenTimeRewardMinutes: 0,
       );
 
-      print('🔄 generateDailyTasks: Creating task ${i + 1}/5 for $subject (Question: ${question.id})');
+      print(
+        '🔄 generateDailyTasks: Creating task ${i + 1}/5 for $subject (Question: ${question.id})',
+      );
       await assignTask(task);
     }
-    print('🔄 generateDailyTasks: Task generation completed - 5 individual tasks created');
+    print(
+      '🔄 generateDailyTasks: Task generation completed - 5 individual tasks created',
+    );
   }
 
-  EducationalQuestion _generateSingleQuestionForSubject(String subject, String ageRange, int questionIndex) {
+  EducationalQuestion _generateSingleQuestionForSubject(
+    String subject,
+    String ageRange,
+    int questionIndex,
+  ) {
     final allQuestions = _generateQuestionsForSubject(subject, ageRange);
-    final adjustedIndex = (questionIndex + DateTime.now().millisecond) % allQuestions.length;
+    final adjustedIndex =
+        (questionIndex + DateTime.now().millisecond) % allQuestions.length;
     return allQuestions[adjustedIndex];
   }
 
-  Future<EducationalQuestion> _getUnusedQuestionForSubject(String childName, String subject, String ageRange) async {
+  Future<EducationalQuestion> _getUnusedQuestionForSubject(
+    String parentUid,
+    String childId,
+    String subject,
+    String ageRange,
+  ) async {
     final allQuestions = _generateQuestionsForSubject(subject, ageRange);
-    final usedQuestionIds = await _getUsedQuestionIds(childName, subject);
-    
-    var unusedQuestions = allQuestions.where((q) => !usedQuestionIds.contains(q.id)).toList();
-    
+    final usedQuestionIds = await _getUsedQuestionIds(
+      parentUid,
+      childId,
+      subject,
+    );
+
+    var unusedQuestions = allQuestions
+        .where((q) => !usedQuestionIds.contains(q.id))
+        .toList();
+
     if (unusedQuestions.isEmpty) {
-      await _resetUsedQuestions(childName, subject);
+      await _resetUsedQuestions(parentUid, childId, subject);
       unusedQuestions = allQuestions;
     }
-    
+
     final randomIndex = DateTime.now().millisecond % unusedQuestions.length;
     final selectedQuestion = unusedQuestions[randomIndex];
-    
-    await _markQuestionAsUsed(childName, subject, selectedQuestion.id);
-    
+
+    await _markQuestionAsUsed(parentUid, childId, subject, selectedQuestion.id);
+
     return selectedQuestion;
   }
 
-  Future<Set<String>> _getUsedQuestionIds(String childName, String subject) async {
+  // used_questions ownership: the document ID is derived from parentUid +
+  // childId (never display name), so it can never collide across two
+  // different families' children — even ones sharing the same childId
+  // string would additionally need the same parentUid.
+  String _usedQuestionsDocId(
+    String parentUid,
+    String childId,
+    String subject,
+  ) => '${parentUid}_${childId}_$subject';
+
+  Future<Set<String>> _getUsedQuestionIds(
+    String parentUid,
+    String childId,
+    String subject,
+  ) async {
     try {
       final doc = await _firestore
           .collection('used_questions')
-          .doc('${childName}_$subject')
+          .doc(_usedQuestionsDocId(parentUid, childId, subject))
           .get();
-      
+
       if (doc.exists) {
         final data = doc.data();
         if (data != null && data['usedIds'] != null) {
@@ -265,13 +380,19 @@ class EducationalTaskService {
     }
   }
 
-  Future<void> _markQuestionAsUsed(String childName, String subject, String questionId) async {
+  Future<void> _markQuestionAsUsed(
+    String parentUid,
+    String childId,
+    String subject,
+    String questionId,
+  ) async {
     try {
       await _firestore
           .collection('used_questions')
-          .doc('${childName}_$subject')
+          .doc(_usedQuestionsDocId(parentUid, childId, subject))
           .set({
-            'childName': childName,
+            'parentUid': parentUid,
+            'childId': childId,
             'subject': subject,
             'usedIds': FieldValue.arrayUnion([questionId]),
             'lastUpdated': FieldValue.serverTimestamp(),
@@ -281,33 +402,58 @@ class EducationalTaskService {
     }
   }
 
-  Future<void> _resetUsedQuestions(String childName, String subject) async {
+  Future<void> _resetUsedQuestions(
+    String parentUid,
+    String childId,
+    String subject,
+  ) async {
     try {
       await _firestore
           .collection('used_questions')
-          .doc('${childName}_$subject')
+          .doc(_usedQuestionsDocId(parentUid, childId, subject))
           .delete();
-      print('Reset used questions for $childName in $subject - all questions available again');
+      print(
+        'Reset used questions for childId $childId in $subject - all questions available again',
+      );
     } catch (e) {
       print('Error resetting used questions: $e');
     }
   }
 
-  /// Generate a similar question for retry when child gets answer wrong
-  Future<EducationalQuestion> generateSimilarQuestion(String subject, String ageRange, int questionIndex, {String? childName}) async {
-    if (childName != null) {
-      return await _getUnusedQuestionForSubject(childName, subject, ageRange);
+  /// Generate a similar question for retry when child gets answer wrong.
+  /// [parentUid] and [childId] must be passed together (or not at all) —
+  /// passing display name alone is no longer supported.
+  Future<EducationalQuestion> generateSimilarQuestion(
+    String subject,
+    String ageRange,
+    int questionIndex, {
+    String? parentUid,
+    String? childId,
+  }) async {
+    if (parentUid != null && childId != null) {
+      return await _getUnusedQuestionForSubject(
+        parentUid,
+        childId,
+        subject,
+        ageRange,
+      );
     }
-    
+
     final allQuestions = _generateQuestionsForSubject(subject, ageRange);
     final currentTime = DateTime.now().millisecondsSinceEpoch;
-    final randomIndex = (questionIndex + currentTime + subject.hashCode) % allQuestions.length;
-    
-    print('EducationalTaskService: Generated similar $subject question (index $randomIndex of ${allQuestions.length})');
+    final randomIndex =
+        (questionIndex + currentTime + subject.hashCode) % allQuestions.length;
+
+    print(
+      'EducationalTaskService: Generated similar $subject question (index $randomIndex of ${allQuestions.length})',
+    );
     return allQuestions[randomIndex];
   }
 
-  List<EducationalQuestion> _generateQuestionsForSubject(String subject, String ageRange) {
+  List<EducationalQuestion> _generateQuestionsForSubject(
+    String subject,
+    String ageRange,
+  ) {
     switch (subject.toLowerCase()) {
       case 'math':
         return _generateMathQuestions(ageRange);
@@ -343,8 +489,14 @@ class EducationalTaskService {
         ),
         EducationalQuestion(
           id: 'math_2',
-          question: 'What is the area of a circle with radius 5 units? (Use π ≈ 3.14)',
-          options: ['78.5 sq units', '31.4 sq units', '15.7 sq units', '62.8 sq units'],
+          question:
+              'What is the area of a circle with radius 5 units? (Use π ≈ 3.14)',
+          options: [
+            '78.5 sq units',
+            '31.4 sq units',
+            '15.7 sq units',
+            '62.8 sq units',
+          ],
           correctAnswerIndex: 0,
           subject: 'Math',
           difficulty: 'medium',
@@ -361,12 +513,14 @@ class EducationalTaskService {
         ),
         EducationalQuestion(
           id: 'math_4',
-          question: 'What is the slope of a line passing through points (2, 3) and (4, 7)?',
+          question:
+              'What is the slope of a line passing through points (2, 3) and (4, 7)?',
           options: ['2', '1', '4', '0.5'],
           correctAnswerIndex: 0,
           subject: 'Math',
           difficulty: 'medium',
-          explanation: 'Slope = (y₂ - y₁)/(x₂ - x₁) = (7 - 3)/(4 - 2) = 4/2 = 2',
+          explanation:
+              'Slope = (y₂ - y₁)/(x₂ - x₁) = (7 - 3)/(4 - 2) = 4/2 = 2',
         ),
         EducationalQuestion(
           id: 'math_5',
@@ -424,7 +578,7 @@ class EducationalTaskService {
         ),
       ];
     }
-    
+
     // Default questions for other age groups
     return [
       EducationalQuestion(
@@ -456,7 +610,8 @@ class EducationalTaskService {
       ),
       EducationalQuestion(
         id: 'math_basic_4',
-        question: 'What is the perimeter of a rectangle with length 8 and width 5?',
+        question:
+            'What is the perimeter of a rectangle with length 8 and width 5?',
         options: ['26', '40', '13', '24'],
         correctAnswerIndex: 0,
         subject: 'Math',
@@ -486,12 +641,13 @@ class EducationalTaskService {
             'The wind whispered through the trees',
             'Time is money',
             'The car screeched to a halt',
-            'She runs like the wind'
+            'She runs like the wind',
           ],
           correctAnswerIndex: 1,
           subject: 'English',
           difficulty: 'medium',
-          explanation: 'A metaphor directly compares two things without using "like" or "as". "Time is money" is a metaphor.',
+          explanation:
+              'A metaphor directly compares two things without using "like" or "as". "Time is money" is a metaphor.',
         ),
         EducationalQuestion(
           id: 'english_2',
@@ -500,43 +656,49 @@ class EducationalTaskService {
           correctAnswerIndex: 1,
           subject: 'English',
           difficulty: 'easy',
-          explanation: 'The past participle of "break" is "broken" (have/has broken).',
+          explanation:
+              'The past participle of "break" is "broken" (have/has broken).',
         ),
         EducationalQuestion(
           id: 'english_3',
           question: 'Which sentence uses correct grammar?',
           options: [
             'Me and him went to the store',
-            'Him and I went to the store', 
+            'Him and I went to the store',
             'He and I went to the store',
-            'I and he went to the store'
+            'I and he went to the store',
           ],
           correctAnswerIndex: 2,
           subject: 'English',
           difficulty: 'medium',
-          explanation: 'The correct form is "He and I" as the compound subject.',
+          explanation:
+              'The correct form is "He and I" as the compound subject.',
         ),
         EducationalQuestion(
           id: 'english_4',
-          question: 'What type of literary device is "The stars danced in the sky"?',
+          question:
+              'What type of literary device is "The stars danced in the sky"?',
           options: ['Metaphor', 'Simile', 'Personification', 'Alliteration'],
           correctAnswerIndex: 2,
           subject: 'English',
           difficulty: 'medium',
-          explanation: 'Personification gives human characteristics to non-human things. Stars cannot actually dance.',
+          explanation:
+              'Personification gives human characteristics to non-human things. Stars cannot actually dance.',
         ),
         EducationalQuestion(
           id: 'english_5',
-          question: 'Which word is an adverb in: "She quickly finished her homework"?',
+          question:
+              'Which word is an adverb in: "She quickly finished her homework"?',
           options: ['She', 'quickly', 'finished', 'homework'],
           correctAnswerIndex: 1,
           subject: 'English',
           difficulty: 'easy',
-          explanation: 'Adverbs modify verbs and often end in -ly. "Quickly" modifies how she finished.',
+          explanation:
+              'Adverbs modify verbs and often end in -ly. "Quickly" modifies how she finished.',
         ),
       ];
     }
-    
+
     // Default questions
     return [
       EducationalQuestion(
@@ -546,7 +708,8 @@ class EducationalTaskService {
         correctAnswerIndex: 2,
         subject: 'English',
         difficulty: 'easy',
-        explanation: 'A noun is a person, place, or thing. "House" is a thing, so it\'s a noun.',
+        explanation:
+            'A noun is a person, place, or thing. "House" is a thing, so it\'s a noun.',
       ),
       EducationalQuestion(
         id: 'english_basic_2',
@@ -555,16 +718,23 @@ class EducationalTaskService {
         correctAnswerIndex: 1,
         subject: 'English',
         difficulty: 'easy',
-        explanation: 'The plural of "child" is "children", an irregular plural form.',
+        explanation:
+            'The plural of "child" is "children", an irregular plural form.',
       ),
       EducationalQuestion(
         id: 'english_basic_3',
         question: 'Which sentence is a question?',
-        options: ['Go to the store', 'What time is it', 'I like pizza', 'Close the door'],
+        options: [
+          'Go to the store',
+          'What time is it',
+          'I like pizza',
+          'Close the door',
+        ],
         correctAnswerIndex: 1,
         subject: 'English',
         difficulty: 'easy',
-        explanation: 'Questions ask for information and typically start with question words like "what".',
+        explanation:
+            'Questions ask for information and typically start with question words like "what".',
       ),
       EducationalQuestion(
         id: 'english_basic_4',
@@ -596,7 +766,8 @@ class EducationalTaskService {
         correctAnswerIndex: 0,
         subject: 'Science',
         difficulty: 'easy',
-        explanation: 'Water is composed of 2 hydrogen atoms and 1 oxygen atom: H₂O',
+        explanation:
+            'Water is composed of 2 hydrogen atoms and 1 oxygen atom: H₂O',
       ),
       EducationalQuestion(
         id: 'science_2',
@@ -605,7 +776,8 @@ class EducationalTaskService {
         correctAnswerIndex: 2,
         subject: 'Science',
         difficulty: 'easy',
-        explanation: 'Mercury is the closest planet to the Sun in our solar system.',
+        explanation:
+            'Mercury is the closest planet to the Sun in our solar system.',
       ),
       EducationalQuestion(
         id: 'science_3',
@@ -614,7 +786,8 @@ class EducationalTaskService {
         correctAnswerIndex: 2,
         subject: 'Science',
         difficulty: 'easy',
-        explanation: 'Plants absorb carbon dioxide (CO₂) from the air during photosynthesis.',
+        explanation:
+            'Plants absorb carbon dioxide (CO₂) from the air during photosynthesis.',
       ),
       EducationalQuestion(
         id: 'science_4',
@@ -632,7 +805,8 @@ class EducationalTaskService {
         correctAnswerIndex: 2,
         subject: 'Science',
         difficulty: 'easy',
-        explanation: 'Gravity is the force that attracts objects toward the center of Earth.',
+        explanation:
+            'Gravity is the force that attracts objects toward the center of Earth.',
       ),
       EducationalQuestion(
         id: 'science_6',
@@ -641,7 +815,8 @@ class EducationalTaskService {
         correctAnswerIndex: 2,
         subject: 'Science',
         difficulty: 'medium',
-        explanation: 'The skin is the largest organ, covering about 20 square feet in adults.',
+        explanation:
+            'The skin is the largest organ, covering about 20 square feet in adults.',
       ),
       EducationalQuestion(
         id: 'science_7',
@@ -650,7 +825,8 @@ class EducationalTaskService {
         correctAnswerIndex: 2,
         subject: 'Science',
         difficulty: 'easy',
-        explanation: 'Dolphins are mammals - they breathe air, are warm-blooded, and nurse their young.',
+        explanation:
+            'Dolphins are mammals - they breathe air, are warm-blooded, and nurse their young.',
       ),
       EducationalQuestion(
         id: 'science_8',
@@ -659,25 +835,38 @@ class EducationalTaskService {
         correctAnswerIndex: 1,
         subject: 'Science',
         difficulty: 'easy',
-        explanation: 'Water boils at 100°C (212°F) at sea level atmospheric pressure.',
+        explanation:
+            'Water boils at 100°C (212°F) at sea level atmospheric pressure.',
       ),
       EducationalQuestion(
         id: 'science_9',
         question: 'Which blood cells help fight infection?',
-        options: ['Red blood cells', 'White blood cells', 'Platelets', 'Plasma'],
+        options: [
+          'Red blood cells',
+          'White blood cells',
+          'Platelets',
+          'Plasma',
+        ],
         correctAnswerIndex: 1,
         subject: 'Science',
         difficulty: 'medium',
-        explanation: 'White blood cells are part of the immune system and help fight infections.',
+        explanation:
+            'White blood cells are part of the immune system and help fight infections.',
       ),
       EducationalQuestion(
         id: 'science_10',
         question: 'What is the speed of light approximately?',
-        options: ['300,000 km/s', '150,000 km/s', '500,000 km/s', '1,000,000 km/s'],
+        options: [
+          '300,000 km/s',
+          '150,000 km/s',
+          '500,000 km/s',
+          '1,000,000 km/s',
+        ],
         correctAnswerIndex: 0,
         subject: 'Science',
         difficulty: 'hard',
-        explanation: 'Light travels at approximately 300,000 kilometers per second in a vacuum.',
+        explanation:
+            'Light travels at approximately 300,000 kilometers per second in a vacuum.',
       ),
     ];
   }
@@ -696,11 +885,17 @@ class EducationalTaskService {
       EducationalQuestion(
         id: 'history_2',
         question: 'Who was the first President of the United States?',
-        options: ['Thomas Jefferson', 'George Washington', 'John Adams', 'Benjamin Franklin'],
+        options: [
+          'Thomas Jefferson',
+          'George Washington',
+          'John Adams',
+          'Benjamin Franklin',
+        ],
         correctAnswerIndex: 1,
         subject: 'History',
         difficulty: 'easy',
-        explanation: 'George Washington was the first President of the United States (1789-1797).',
+        explanation:
+            'George Washington was the first President of the United States (1789-1797).',
       ),
       EducationalQuestion(
         id: 'history_3',
@@ -709,7 +904,8 @@ class EducationalTaskService {
         correctAnswerIndex: 2,
         subject: 'History',
         difficulty: 'easy',
-        explanation: 'The ancient Egyptians built the famous pyramids of Giza around 2580-2510 BCE.',
+        explanation:
+            'The ancient Egyptians built the famous pyramids of Giza around 2580-2510 BCE.',
       ),
       EducationalQuestion(
         id: 'history_4',
@@ -718,43 +914,65 @@ class EducationalTaskService {
         correctAnswerIndex: 1,
         subject: 'History',
         difficulty: 'medium',
-        explanation: 'The Berlin Wall fell in 1989, marking the end of the Cold War era.',
+        explanation:
+            'The Berlin Wall fell in 1989, marking the end of the Cold War era.',
       ),
       EducationalQuestion(
         id: 'history_5',
-        question: 'Which explorer is credited with discovering the Americas in 1492?',
-        options: ['Vasco da Gama', 'Christopher Columbus', 'Ferdinand Magellan', 'Marco Polo'],
+        question:
+            'Which explorer is credited with discovering the Americas in 1492?',
+        options: [
+          'Vasco da Gama',
+          'Christopher Columbus',
+          'Ferdinand Magellan',
+          'Marco Polo',
+        ],
         correctAnswerIndex: 1,
         subject: 'History',
         difficulty: 'easy',
-        explanation: 'Christopher Columbus reached the Americas in 1492 while seeking a western route to Asia.',
+        explanation:
+            'Christopher Columbus reached the Americas in 1492 while seeking a western route to Asia.',
       ),
       EducationalQuestion(
         id: 'history_6',
-        question: 'What was the name of the ship that carried the Pilgrims to America in 1620?',
+        question:
+            'What was the name of the ship that carried the Pilgrims to America in 1620?',
         options: ['Santa Maria', 'Mayflower', 'Endeavour', 'Victoria'],
         correctAnswerIndex: 1,
         subject: 'History',
         difficulty: 'medium',
-        explanation: 'The Mayflower carried 102 Pilgrims from England to Plymouth, Massachusetts in 1620.',
+        explanation:
+            'The Mayflower carried 102 Pilgrims from England to Plymouth, Massachusetts in 1620.',
       ),
       EducationalQuestion(
         id: 'history_7',
         question: 'Who wrote the Declaration of Independence?',
-        options: ['George Washington', 'Benjamin Franklin', 'Thomas Jefferson', 'John Adams'],
+        options: [
+          'George Washington',
+          'Benjamin Franklin',
+          'Thomas Jefferson',
+          'John Adams',
+        ],
         correctAnswerIndex: 2,
         subject: 'History',
         difficulty: 'medium',
-        explanation: 'Thomas Jefferson was the primary author of the Declaration of Independence in 1776.',
+        explanation:
+            'Thomas Jefferson was the primary author of the Declaration of Independence in 1776.',
       ),
       EducationalQuestion(
         id: 'history_8',
         question: 'Which empire was ruled by Julius Caesar?',
-        options: ['Greek Empire', 'Roman Empire', 'Persian Empire', 'Ottoman Empire'],
+        options: [
+          'Greek Empire',
+          'Roman Empire',
+          'Persian Empire',
+          'Ottoman Empire',
+        ],
         correctAnswerIndex: 1,
         subject: 'History',
         difficulty: 'easy',
-        explanation: 'Julius Caesar was a Roman military leader who became dictator of the Roman Empire.',
+        explanation:
+            'Julius Caesar was a Roman military leader who became dictator of the Roman Empire.',
       ),
       EducationalQuestion(
         id: 'history_9',
@@ -763,21 +981,30 @@ class EducationalTaskService {
         correctAnswerIndex: 1,
         subject: 'History',
         difficulty: 'medium',
-        explanation: 'The Titanic sank on April 15, 1912 after hitting an iceberg during its maiden voyage.',
+        explanation:
+            'The Titanic sank on April 15, 1912 after hitting an iceberg during its maiden voyage.',
       ),
       EducationalQuestion(
         id: 'history_10',
         question: 'Who was the first person to walk on the Moon?',
-        options: ['Buzz Aldrin', 'Neil Armstrong', 'John Glenn', 'Yuri Gagarin'],
+        options: [
+          'Buzz Aldrin',
+          'Neil Armstrong',
+          'John Glenn',
+          'Yuri Gagarin',
+        ],
         correctAnswerIndex: 1,
         subject: 'History',
         difficulty: 'easy',
-        explanation: 'Neil Armstrong became the first person to walk on the Moon on July 20, 1969.',
+        explanation:
+            'Neil Armstrong became the first person to walk on the Moon on July 20, 1969.',
       ),
     ];
   }
 
-  List<EducationalQuestion> _generateGeneralKnowledgeQuestions(String ageRange) {
+  List<EducationalQuestion> _generateGeneralKnowledgeQuestions(
+    String ageRange,
+  ) {
     return [
       EducationalQuestion(
         id: 'general_1',
@@ -795,7 +1022,8 @@ class EducationalTaskService {
         correctAnswerIndex: 1,
         subject: 'General Knowledge',
         difficulty: 'medium',
-        explanation: 'Africa was historically referred to as the "Dark Continent" by European explorers.',
+        explanation:
+            'Africa was historically referred to as the "Dark Continent" by European explorers.',
       ),
       EducationalQuestion(
         id: 'general_3',
@@ -804,7 +1032,8 @@ class EducationalTaskService {
         correctAnswerIndex: 1,
         subject: 'General Knowledge',
         difficulty: 'easy',
-        explanation: 'The Blue Whale is the largest mammal and largest animal ever known to exist.',
+        explanation:
+            'The Blue Whale is the largest mammal and largest animal ever known to exist.',
       ),
       EducationalQuestion(
         id: 'general_4',
@@ -813,16 +1042,23 @@ class EducationalTaskService {
         correctAnswerIndex: 2,
         subject: 'General Knowledge',
         difficulty: 'easy',
-        explanation: 'There are 7 continents: Asia, Africa, North America, South America, Antarctica, Europe, and Australia.',
+        explanation:
+            'There are 7 continents: Asia, Africa, North America, South America, Antarctica, Europe, and Australia.',
       ),
       EducationalQuestion(
         id: 'general_5',
         question: 'What is the longest river in the world?',
-        options: ['Amazon River', 'Nile River', 'Mississippi River', 'Yangtze River'],
+        options: [
+          'Amazon River',
+          'Nile River',
+          'Mississippi River',
+          'Yangtze River',
+        ],
         correctAnswerIndex: 1,
         subject: 'General Knowledge',
         difficulty: 'medium',
-        explanation: 'The Nile River in Africa is generally considered the longest river in the world at about 6,650 kilometers.',
+        explanation:
+            'The Nile River in Africa is generally considered the longest river in the world at about 6,650 kilometers.',
       ),
     ];
   }
@@ -832,20 +1068,32 @@ class EducationalTaskService {
       EducationalQuestion(
         id: 'art_1',
         question: 'Who painted the Mona Lisa?',
-        options: ['Michelangelo', 'Leonardo da Vinci', 'Vincent van Gogh', 'Pablo Picasso'],
+        options: [
+          'Michelangelo',
+          'Leonardo da Vinci',
+          'Vincent van Gogh',
+          'Pablo Picasso',
+        ],
         correctAnswerIndex: 1,
         subject: 'Art',
         difficulty: 'easy',
-        explanation: 'Leonardo da Vinci painted the Mona Lisa between 1503 and 1519.',
+        explanation:
+            'Leonardo da Vinci painted the Mona Lisa between 1503 and 1519.',
       ),
       EducationalQuestion(
         id: 'art_2',
         question: 'What are the three primary colors in painting?',
-        options: ['Red, Green, Blue', 'Red, Yellow, Blue', 'Orange, Green, Purple', 'Cyan, Magenta, Yellow'],
+        options: [
+          'Red, Green, Blue',
+          'Red, Yellow, Blue',
+          'Orange, Green, Purple',
+          'Cyan, Magenta, Yellow',
+        ],
         correctAnswerIndex: 1,
         subject: 'Art',
         difficulty: 'easy',
-        explanation: 'In traditional color theory for painting, the primary colors are red, yellow, and blue.',
+        explanation:
+            'In traditional color theory for painting, the primary colors are red, yellow, and blue.',
       ),
       EducationalQuestion(
         id: 'art_3',
@@ -854,43 +1102,60 @@ class EducationalTaskService {
         correctAnswerIndex: 1,
         subject: 'Art',
         difficulty: 'medium',
-        explanation: 'Picasso co-founded Cubism along with Georges Braque in the early 20th century.',
+        explanation:
+            'Picasso co-founded Cubism along with Georges Braque in the early 20th century.',
       ),
       EducationalQuestion(
         id: 'art_4',
         question: 'Which famous painting depicts melting clocks?',
-        options: ['The Starry Night', 'The Scream', 'The Persistence of Memory', 'Guernica'],
+        options: [
+          'The Starry Night',
+          'The Scream',
+          'The Persistence of Memory',
+          'Guernica',
+        ],
         correctAnswerIndex: 2,
         subject: 'Art',
         difficulty: 'medium',
-        explanation: 'The Persistence of Memory by Salvador Dalí (1931) is famous for its melting clocks.',
+        explanation:
+            'The Persistence of Memory by Salvador Dalí (1931) is famous for its melting clocks.',
       ),
       EducationalQuestion(
         id: 'art_5',
-        question: 'What is the technique of creating images using small dots of color?',
+        question:
+            'What is the technique of creating images using small dots of color?',
         options: ['Impressionism', 'Pointillism', 'Expressionism', 'Cubism'],
         correctAnswerIndex: 1,
         subject: 'Art',
         difficulty: 'medium',
-        explanation: 'Pointillism uses tiny dots of pure color to create an image when viewed from a distance.',
+        explanation:
+            'Pointillism uses tiny dots of pure color to create an image when viewed from a distance.',
       ),
       EducationalQuestion(
         id: 'art_6',
         question: 'Who painted "The Starry Night"?',
-        options: ['Claude Monet', 'Vincent van Gogh', 'Salvador Dalí', 'Edvard Munch'],
+        options: [
+          'Claude Monet',
+          'Vincent van Gogh',
+          'Salvador Dalí',
+          'Edvard Munch',
+        ],
         correctAnswerIndex: 1,
         subject: 'Art',
         difficulty: 'easy',
-        explanation: 'Vincent van Gogh painted The Starry Night in 1889 while at an asylum in Saint-Rémy-de-Provence.',
+        explanation:
+            'Vincent van Gogh painted The Starry Night in 1889 while at an asylum in Saint-Rémy-de-Provence.',
       ),
       EducationalQuestion(
         id: 'art_7',
-        question: 'What is a sculpture made from clay before it is fired called?',
+        question:
+            'What is a sculpture made from clay before it is fired called?',
         options: ['Ceramic', 'Greenware', 'Bisque', 'Stoneware'],
         correctAnswerIndex: 1,
         subject: 'Art',
         difficulty: 'medium',
-        explanation: 'Greenware is unfired clay that has dried but not yet been kiln-fired.',
+        explanation:
+            'Greenware is unfired clay that has dried but not yet been kiln-fired.',
       ),
       EducationalQuestion(
         id: 'art_8',
@@ -903,21 +1168,30 @@ class EducationalTaskService {
       ),
       EducationalQuestion(
         id: 'art_9',
-        question: 'What famous building was designed by architect Frank Lloyd Wright?',
-        options: ['Empire State Building', 'Fallingwater', 'Sydney Opera House', 'Eiffel Tower'],
+        question:
+            'What famous building was designed by architect Frank Lloyd Wright?',
+        options: [
+          'Empire State Building',
+          'Fallingwater',
+          'Sydney Opera House',
+          'Eiffel Tower',
+        ],
         correctAnswerIndex: 1,
         subject: 'Art',
         difficulty: 'medium',
-        explanation: 'Fallingwater in Pennsylvania was designed by Frank Lloyd Wright in 1935.',
+        explanation:
+            'Fallingwater in Pennsylvania was designed by Frank Lloyd Wright in 1935.',
       ),
       EducationalQuestion(
         id: 'art_10',
-        question: 'What is the art technique of scratching through a layer of wet paint?',
+        question:
+            'What is the art technique of scratching through a layer of wet paint?',
         options: ['Glazing', 'Impasto', 'Sgraffito', 'Stippling'],
         correctAnswerIndex: 2,
         subject: 'Art',
         difficulty: 'hard',
-        explanation: 'Sgraffito involves scratching through wet paint or plaster to reveal a layer beneath.',
+        explanation:
+            'Sgraffito involves scratching through wet paint or plaster to reveal a layer beneath.',
       ),
     ];
   }
@@ -927,11 +1201,17 @@ class EducationalTaskService {
       EducationalQuestion(
         id: 'coding_1',
         question: 'What does HTML stand for?',
-        options: ['Hyper Text Markup Language', 'High Tech Modern Language', 'Home Tool Markup Language', 'Hyperlinks Text Mark Language'],
+        options: [
+          'Hyper Text Markup Language',
+          'High Tech Modern Language',
+          'Home Tool Markup Language',
+          'Hyperlinks Text Mark Language',
+        ],
         correctAnswerIndex: 0,
         subject: 'Coding',
         difficulty: 'easy',
-        explanation: 'HTML stands for Hyper Text Markup Language, used to structure web content.',
+        explanation:
+            'HTML stands for Hyper Text Markup Language, used to structure web content.',
       ),
       EducationalQuestion(
         id: 'coding_2',
@@ -940,7 +1220,8 @@ class EducationalTaskService {
         correctAnswerIndex: 2,
         subject: 'Coding',
         difficulty: 'easy',
-        explanation: 'In Python, the hash symbol (#) is used to start a single-line comment.',
+        explanation:
+            'In Python, the hash symbol (#) is used to start a single-line comment.',
       ),
       EducationalQuestion(
         id: 'coding_3',
@@ -949,7 +1230,8 @@ class EducationalTaskService {
         correctAnswerIndex: 1,
         subject: 'Coding',
         difficulty: 'easy',
-        explanation: 'Following order of operations: 3 * 2 = 6, then 5 + 6 = 11.',
+        explanation:
+            'Following order of operations: 3 * 2 = 6, then 5 + 6 = 11.',
       ),
       EducationalQuestion(
         id: 'coding_4',
@@ -963,20 +1245,32 @@ class EducationalTaskService {
       EducationalQuestion(
         id: 'coding_5',
         question: 'What does CSS stand for?',
-        options: ['Computer Style Sheets', 'Cascading Style Sheets', 'Creative Style System', 'Colorful Style Sheets'],
+        options: [
+          'Computer Style Sheets',
+          'Cascading Style Sheets',
+          'Creative Style System',
+          'Colorful Style Sheets',
+        ],
         correctAnswerIndex: 1,
         subject: 'Coding',
         difficulty: 'easy',
-        explanation: 'CSS stands for Cascading Style Sheets, used to style web pages.',
+        explanation:
+            'CSS stands for Cascading Style Sheets, used to style web pages.',
       ),
       EducationalQuestion(
         id: 'coding_6',
         question: 'What is a loop used for in programming?',
-        options: ['To store data', 'To repeat code multiple times', 'To create variables', 'To print text'],
+        options: [
+          'To store data',
+          'To repeat code multiple times',
+          'To create variables',
+          'To print text',
+        ],
         correctAnswerIndex: 1,
         subject: 'Coding',
         difficulty: 'easy',
-        explanation: 'A loop allows you to repeat a block of code multiple times.',
+        explanation:
+            'A loop allows you to repeat a block of code multiple times.',
       ),
       EducationalQuestion(
         id: 'coding_7',
@@ -985,7 +1279,8 @@ class EducationalTaskService {
         correctAnswerIndex: 1,
         subject: 'Coding',
         difficulty: 'medium',
-        explanation: '10 % 3 gives the remainder when 10 is divided by 3, which is 1.',
+        explanation:
+            '10 % 3 gives the remainder when 10 is divided by 3, which is 1.',
       ),
       EducationalQuestion(
         id: 'coding_8',
@@ -994,16 +1289,23 @@ class EducationalTaskService {
         correctAnswerIndex: 2,
         subject: 'Coding',
         difficulty: 'medium',
-        explanation: 'HTML is a markup language, not a programming language. It structures content but does not have programming logic.',
+        explanation:
+            'HTML is a markup language, not a programming language. It structures content but does not have programming logic.',
       ),
       EducationalQuestion(
         id: 'coding_9',
         question: 'What is an array?',
-        options: ['A single variable', 'A collection of values stored together', 'A type of loop', 'A mathematical operator'],
+        options: [
+          'A single variable',
+          'A collection of values stored together',
+          'A type of loop',
+          'A mathematical operator',
+        ],
         correctAnswerIndex: 1,
         subject: 'Coding',
         difficulty: 'easy',
-        explanation: 'An array is a data structure that stores multiple values in a single variable.',
+        explanation:
+            'An array is a data structure that stores multiple values in a single variable.',
       ),
       EducationalQuestion(
         id: 'coding_10',
@@ -1026,16 +1328,23 @@ class EducationalTaskService {
         correctAnswerIndex: 3,
         subject: 'Geography',
         difficulty: 'easy',
-        explanation: 'Russia is the largest country in the world, spanning over 17 million square kilometers.',
+        explanation:
+            'Russia is the largest country in the world, spanning over 17 million square kilometers.',
       ),
       EducationalQuestion(
         id: 'geography_2',
         question: 'Which ocean is the largest?',
-        options: ['Atlantic Ocean', 'Indian Ocean', 'Pacific Ocean', 'Arctic Ocean'],
+        options: [
+          'Atlantic Ocean',
+          'Indian Ocean',
+          'Pacific Ocean',
+          'Arctic Ocean',
+        ],
         correctAnswerIndex: 2,
         subject: 'Geography',
         difficulty: 'easy',
-        explanation: 'The Pacific Ocean is the largest and deepest ocean on Earth.',
+        explanation:
+            'The Pacific Ocean is the largest and deepest ocean on Earth.',
       ),
       EducationalQuestion(
         id: 'geography_3',
@@ -1044,7 +1353,8 @@ class EducationalTaskService {
         correctAnswerIndex: 2,
         subject: 'Geography',
         difficulty: 'medium',
-        explanation: 'Canberra is the capital of Australia, not Sydney as many people think.',
+        explanation:
+            'Canberra is the capital of Australia, not Sydney as many people think.',
       ),
       EducationalQuestion(
         id: 'geography_4',
@@ -1053,16 +1363,23 @@ class EducationalTaskService {
         correctAnswerIndex: 2,
         subject: 'Geography',
         difficulty: 'medium',
-        explanation: 'The Andes mountain range in South America is the longest, stretching about 7,000 km.',
+        explanation:
+            'The Andes mountain range in South America is the longest, stretching about 7,000 km.',
       ),
       EducationalQuestion(
         id: 'geography_5',
         question: 'Which desert is the largest hot desert in the world?',
-        options: ['Gobi Desert', 'Sahara Desert', 'Arabian Desert', 'Kalahari Desert'],
+        options: [
+          'Gobi Desert',
+          'Sahara Desert',
+          'Arabian Desert',
+          'Kalahari Desert',
+        ],
         correctAnswerIndex: 1,
         subject: 'Geography',
         difficulty: 'easy',
-        explanation: 'The Sahara Desert in Africa is the largest hot desert in the world.',
+        explanation:
+            'The Sahara Desert in Africa is the largest hot desert in the world.',
       ),
       EducationalQuestion(
         id: 'geography_6',
@@ -1071,7 +1388,8 @@ class EducationalTaskService {
         correctAnswerIndex: 1,
         subject: 'Geography',
         difficulty: 'medium',
-        explanation: 'As of recent data, India has surpassed China as the most populous country.',
+        explanation:
+            'As of recent data, India has surpassed China as the most populous country.',
       ),
       EducationalQuestion(
         id: 'geography_7',
@@ -1080,7 +1398,8 @@ class EducationalTaskService {
         correctAnswerIndex: 2,
         subject: 'Geography',
         difficulty: 'easy',
-        explanation: 'The Nile River flows through Egypt and is crucial to the country\'s history and agriculture.',
+        explanation:
+            'The Nile River flows through Egypt and is crucial to the country\'s history and agriculture.',
       ),
       EducationalQuestion(
         id: 'geography_8',
@@ -1098,7 +1417,8 @@ class EducationalTaskService {
         correctAnswerIndex: 1,
         subject: 'Geography',
         difficulty: 'medium',
-        explanation: 'Vatican City is the smallest country in the world at about 0.44 square kilometers.',
+        explanation:
+            'Vatican City is the smallest country in the world at about 0.44 square kilometers.',
       ),
       EducationalQuestion(
         id: 'geography_10',
@@ -1112,27 +1432,47 @@ class EducationalTaskService {
     ];
   }
 
-  /// Generate the next set of 5 tasks after completing a set
-  Future<void> _generateNextTaskSet(String childName) async {
+  /// Generate the next set of 5 tasks after completing a set.
+  ///
+  /// NOTE: currently unreachable — the only call site is commented out in
+  /// [completeTask] ("Temporarily disabled ... to debug task overlap").
+  /// Fixed here for identity-consistency in case it's re-enabled, but not
+  /// otherwise exercised by this migration.
+  Future<void> _generateNextTaskSet({
+    required String parentUid,
+    required String childId,
+    required String childName,
+  }) async {
     try {
-      final childQuery = await FirebaseFirestore.instance
-          .collectionGroup('children')
-          .where('name', isEqualTo: childName)
+      final childDoc = await _firestore
+          .collection('users')
+          .doc(parentUid)
+          .collection('children')
+          .doc(childId)
           .get();
-      
-      if (childQuery.docs.isEmpty) return;
-      
-      final childData = childQuery.docs.first.data();
-      final subjects = List<String>.from(childData['subjectsOfInterest'] ?? ['Math', 'English', 'Science']);
+
+      if (!childDoc.exists) return;
+
+      final childData = childDoc.data()!;
+      final subjects = List<String>.from(
+        childData['subjectsOfInterest'] ?? ['Math', 'English', 'Science'],
+      );
       final ageRange = childData['ageRange'] ?? '14-16';
-      
+
       final today = DateTime.now();
       for (int i = 0; i < 5; i++) {
         final subject = subjects[i % subjects.length];
-        final question = await _getUnusedQuestionForSubject(childName, subject, ageRange);
-        
+        final question = await _getUnusedQuestionForSubject(
+          parentUid,
+          childId,
+          subject,
+          ageRange,
+        );
+
         final task = EducationalTask(
-          id: '${childName}_next_${today.millisecondsSinceEpoch}_$i',
+          id: '${childId}_next_${today.millisecondsSinceEpoch}_$i',
+          parentUid: parentUid,
+          childId: childId,
           childName: childName,
           subject: subject,
           questions: [question],
@@ -1142,12 +1482,12 @@ class EducationalTaskService {
 
         await assignTask(task);
       }
-      
-      print('EducationalTaskService: Generated 5 new tasks for $childName (with unused questions)');
-      
+
+      print(
+        'EducationalTaskService: Generated 5 new tasks for childId $childId (with unused questions)',
+      );
     } catch (e) {
       print('EducationalTaskService: Error generating next task set: $e');
     }
   }
 }
-

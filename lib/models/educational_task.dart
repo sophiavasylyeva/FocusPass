@@ -2,6 +2,12 @@ import 'educational_question.dart';
 
 class EducationalTask {
   final String id;
+  // Identity: parentUid + childId are the ONLY fields that should be used
+  // to determine ownership of this task. childName is display metadata only
+  // (kept for existing UI text and for legacy records written before this
+  // field existed — see EducationalTaskService for the read/write rules).
+  final String parentUid;
+  final String childId;
   final String childName;
   final String subject;
   final List<EducationalQuestion> questions;
@@ -13,6 +19,8 @@ class EducationalTask {
 
   EducationalTask({
     required this.id,
+    this.parentUid = '',
+    this.childId = '',
     required this.childName,
     required this.subject,
     required this.questions,
@@ -26,13 +34,23 @@ class EducationalTask {
   factory EducationalTask.fromMap(Map<String, dynamic> map) {
     return EducationalTask(
       id: map['id'] ?? '',
+      // Legacy documents written before this migration won't have
+      // parentUid/childId — default to '' rather than guessing. Callers
+      // that require a stable identity should check for emptiness
+      // explicitly rather than assume it's always populated.
+      parentUid: map['parentUid'] ?? '',
+      childId: map['childId'] ?? '',
       childName: map['childName'] ?? '',
       subject: map['subject'] ?? '',
-      questions: (map['questions'] as List<dynamic>?)
-          ?.map((q) => EducationalQuestion.fromMap(q))
-          .toList() ?? [],
+      questions:
+          (map['questions'] as List<dynamic>?)
+              ?.map((q) => EducationalQuestion.fromMap(q))
+              .toList() ??
+          [],
       assignedAt: DateTime.parse(map['assignedAt']),
-      completedAt: map['completedAt'] != null ? DateTime.parse(map['completedAt']) : null,
+      completedAt: map['completedAt'] != null
+          ? DateTime.parse(map['completedAt'])
+          : null,
       isCompleted: map['isCompleted'] ?? false,
       screenTimeRewardMinutes: map['screenTimeRewardMinutes'] ?? 15,
       questionAnswers: Map<String, bool>.from(map['questionAnswers'] ?? {}),
@@ -42,6 +60,8 @@ class EducationalTask {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'parentUid': parentUid,
+      'childId': childId,
       'childName': childName,
       'subject': subject,
       'questions': questions.map((q) => q.toMap()).toList(),
@@ -55,6 +75,8 @@ class EducationalTask {
 
   EducationalTask copyWith({
     String? id,
+    String? parentUid,
+    String? childId,
     String? childName,
     String? subject,
     List<EducationalQuestion>? questions,
@@ -66,13 +88,16 @@ class EducationalTask {
   }) {
     return EducationalTask(
       id: id ?? this.id,
+      parentUid: parentUid ?? this.parentUid,
+      childId: childId ?? this.childId,
       childName: childName ?? this.childName,
       subject: subject ?? this.subject,
       questions: questions ?? this.questions,
       assignedAt: assignedAt ?? this.assignedAt,
       completedAt: completedAt ?? this.completedAt,
       isCompleted: isCompleted ?? this.isCompleted,
-      screenTimeRewardMinutes: screenTimeRewardMinutes ?? this.screenTimeRewardMinutes,
+      screenTimeRewardMinutes:
+          screenTimeRewardMinutes ?? this.screenTimeRewardMinutes,
       questionAnswers: questionAnswers ?? this.questionAnswers,
     );
   }

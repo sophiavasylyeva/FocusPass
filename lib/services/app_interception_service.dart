@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/child_session.dart';
+import 'child_session_service.dart';
 import 'screen_time_service.dart';
 import 'educational_task_service.dart';
 import 'notification_service.dart';
@@ -12,26 +14,28 @@ class AppInterceptionService {
   static const String _lastAppCheckKey = 'last_app_check';
   static const String _interceptedAppsKey = 'intercepted_apps';
   static const String _pendingTasksKey = 'pending_tasks_shown';
-  
+
   static Timer? _interceptionTimer;
   static String? _lastActiveApp;
   static Set<String> _interceptedApps = {};
   static bool _isRunning = false;
   static DateTime? _lastInterceptionTime;
   static String? _lastInterceptedApp;
-  static int _interceptionCooldownSeconds = 10; // Prevent repeated interceptions
-  
+  static int _interceptionCooldownSeconds =
+      10; // Prevent repeated interceptions
+
   static final NotificationService _notificationService = NotificationService();
   static final EducationalTaskService _taskService = EducationalTaskService();
-  static final FocusPassWorkflowService _workflowService = FocusPassWorkflowService();
+  static final FocusPassWorkflowService _workflowService =
+      FocusPassWorkflowService();
 
   /// Initialize the app interception service
   static Future<void> initialize() async {
     print('AppInterceptionService: Initializing...');
-    
+
     await _loadInterceptedApps();
     await _notificationService.initialize();
-    
+
     _startInterception();
     print('AppInterceptionService: Initialized and started');
   }
@@ -39,15 +43,15 @@ class AppInterceptionService {
   /// Start monitoring for app launches
   static void _startInterception() {
     if (_isRunning) return;
-    
+
     _isRunning = true;
     _interceptionTimer?.cancel();
-    
+
     // Check every 2 seconds for app changes (more responsive than screen time service)
     _interceptionTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       _checkForAppLaunch();
     });
-    
+
     print('AppInterceptionService: Started app launch monitoring');
   }
 
@@ -61,20 +65,25 @@ class AppInterceptionService {
       // Get current app usage in the last 5 seconds
       final endTime = DateTime.now();
       final startTime = endTime.subtract(const Duration(seconds: 5));
-      
-      final usageStats = await NativeUsageStatsService.queryUsageStats(startTime, endTime);
-      
+
+      final usageStats = await NativeUsageStatsService.queryUsageStats(
+        startTime,
+        endTime,
+      );
+
       // Find the most recently used app
       String? currentApp = await _getMostRecentApp(usageStats);
-      
+
       if (currentApp != null && currentApp != _lastActiveApp) {
-        print('AppInterceptionService: App changed from $_lastActiveApp to $currentApp');
-        
+        print(
+          'AppInterceptionService: App changed from $_lastActiveApp to $currentApp',
+        );
+
         if (await _shouldInterceptApp(currentApp)) {
           print('AppInterceptionService: Intercepting $currentApp');
           await _interceptApp(currentApp);
         }
-        
+
         _lastActiveApp = currentApp;
       }
     } catch (e) {
@@ -85,18 +94,18 @@ class AppInterceptionService {
   /// Get the most recently used app from usage stats
   static Future<String?> _getMostRecentApp(List<dynamic> usageStats) async {
     if (usageStats.isEmpty) return null;
-    
+
     String? mostRecentPackage;
     int maxUsage = 0;
-    
+
     for (final stat in usageStats) {
       final packageName = stat.packageName ?? '';
       if (packageName.isEmpty) continue;
-      
+
       // Convert usage time safely
       final usageTimeRaw = stat.totalTimeInForeground ?? 0;
       int usageTime = 0;
-      
+
       if (usageTimeRaw is int) {
         usageTime = usageTimeRaw;
       } else if (usageTimeRaw is String) {
@@ -104,13 +113,14 @@ class AppInterceptionService {
       } else if (usageTimeRaw is double) {
         usageTime = usageTimeRaw.toInt();
       }
-      
+
       if (usageTime > maxUsage) {
         maxUsage = usageTime;
-        mostRecentPackage = packageName; // Always return package name for consistency
+        mostRecentPackage =
+            packageName; // Always return package name for consistency
       }
     }
-    
+
     return mostRecentPackage;
   }
 
@@ -118,9 +128,13 @@ class AppInterceptionService {
   static Future<bool> _shouldInterceptApp(String packageName) async {
     // Prevent repeated interceptions of the same app within cooldown period
     if (_lastInterceptedApp == packageName && _lastInterceptionTime != null) {
-      final timeSinceLastInterception = DateTime.now().difference(_lastInterceptionTime!);
+      final timeSinceLastInterception = DateTime.now().difference(
+        _lastInterceptionTime!,
+      );
       if (timeSinceLastInterception.inSeconds < _interceptionCooldownSeconds) {
-        print('AppInterceptionService: Skipping interception of $packageName - within cooldown period (${timeSinceLastInterception.inSeconds}s < ${_interceptionCooldownSeconds}s)');
+        print(
+          'AppInterceptionService: Skipping interception of $packageName - within cooldown period (${timeSinceLastInterception.inSeconds}s < ${_interceptionCooldownSeconds}s)',
+        );
         return false;
       }
     }
@@ -128,10 +142,10 @@ class AppInterceptionService {
     // Get app name from package (YouTube, TikTok, Chrome, etc.)
     final appName = await _getAppNameFromPackage(packageName);
     if (appName == null) return false; // Only intercept known apps
-    
+
     // Use the workflow service to determine if app should be intercepted
     final accessResult = await _workflowService.handleAppAccessAttempt(appName);
-    
+
     // Intercept if access is denied
     return !accessResult.isAllowed;
   }
@@ -139,78 +153,92 @@ class AppInterceptionService {
   /// Intercept an app launch and redirect to educational content
   static Future<void> _interceptApp(String packageName) async {
     print('AppInterceptionService: Intercepting $packageName launch');
-    
+
     try {
       // Record interception timing to prevent glitchy repeated interceptions
       _lastInterceptedApp = packageName;
       _lastInterceptionTime = DateTime.now();
-      
+
       // Add to intercepted apps set to prevent repeated interceptions
       _interceptedApps.add(packageName);
       await _saveInterceptedApps();
-      
-      final childName = await _getCurrentChildName();
-      if (childName == null) return;
-      
+
+      final session = await _getCurrentSession();
+      if (session == null) return;
+
       // Resolve display name for messaging
       final appName = await _getAppNameFromPackage(packageName) ?? packageName;
-      
+
       // Check what type of interception this is
-      final hasPendingTasks = await _taskService.hasPendingTasks(childName);
+      final hasPendingTasks = await _taskService.hasPendingTasks(
+        parentUid: session.parentUid,
+        childId: session.childId,
+      );
       final stats = ScreenTimeService.getCurrentUsageStats();
       final appStats = stats[packageName];
       final isBlocked = appStats?['isBlocked'] ?? false;
-      
+
       if (hasPendingTasks) {
-        await _handleEducationalTaskInterception(appName, childName);
+        await _handleEducationalTaskInterception(appName, session);
       } else if (isBlocked) {
         await _handleTimeExceededInterception(appName);
       }
-      
+
       // Try to bring FocusPass to foreground
       await _bringFocusPassToForeground();
-      
+
       // Request the system to close the intercepted foreground app
       await _closeForegroundApp();
-      
     } catch (e) {
       print('AppInterceptionService: Error intercepting app: $e');
     }
   }
 
   /// Handle interception for pending educational tasks
-  static Future<void> _handleEducationalTaskInterception(String appName, String childName) async {
-    print('AppInterceptionService: Handling educational task interception for $appName');
-    
-    final pendingTasks = await _taskService.fetchTasks(childName);
+  static Future<void> _handleEducationalTaskInterception(
+    String appName,
+    ChildSession session,
+  ) async {
+    print(
+      'AppInterceptionService: Handling educational task interception for $appName',
+    );
+
+    final pendingTasks = await _taskService.fetchTasks(
+      parentUid: session.parentUid,
+      childId: session.childId,
+    );
     final pendingCount = pendingTasks.where((task) => !task.isCompleted).length;
-    
+
     // Show high-priority notification that requires completing tasks
     await _notificationService.showEducationalTaskInterception(
       blockedAppName: appName,
       pendingTaskCount: pendingCount,
       earnableTime: _calculateEarnableTime(pendingCount),
     );
-    
+
     // Block the app with educational message
     await _showEducationalBlockingOverlay(appName, pendingCount);
   }
 
   /// Handle interception for time exceeded
   static Future<void> _handleTimeExceededInterception(String appName) async {
-    print('AppInterceptionService: Handling time exceeded interception for $appName');
-    
+    print(
+      'AppInterceptionService: Handling time exceeded interception for $appName',
+    );
+
     final stats = ScreenTimeService.getCurrentUsageStats();
     final appStats = stats[appName];
     final dailyLimitMs = appStats?['dailyLimit'] ?? (1 * 60 * 60 * 1000);
-    final dailyLimitHours = (dailyLimitMs / (1000 * 60 * 60)).toStringAsFixed(1);
-    
+    final dailyLimitHours = (dailyLimitMs / (1000 * 60 * 60)).toStringAsFixed(
+      1,
+    );
+
     // Show time exceeded notification
     await _notificationService.showTimeExceededNotification(
       appName: appName,
       timeLimit: '${dailyLimitHours}h',
     );
-    
+
     // Block the app with time exceeded message
     await _showTimeExceededBlockingOverlay(appName, dailyLimitHours);
   }
@@ -222,35 +250,47 @@ class AppInterceptionService {
   }
 
   /// Show educational blocking overlay
-  static Future<void> _showEducationalBlockingOverlay(String appName, int pendingCount) async {
+  static Future<void> _showEducationalBlockingOverlay(
+    String appName,
+    int pendingCount,
+  ) async {
     const platform = MethodChannel('com.focuspass.app_blocker');
     try {
       await platform.invokeMethod('showEducationalBlockingOverlay', {
         'appName': appName,
         'title': '📚 Complete Your Learning Tasks First!',
-        'message': 'You have $pendingCount educational tasks to complete before accessing $appName.',
+        'message':
+            'You have $pendingCount educational tasks to complete before accessing $appName.',
         'earnableTime': '${_calculateEarnableTime(pendingCount)} minutes',
         'actionText': 'Open FocusPass to Complete Tasks',
-        'actionType': 'educational_tasks'
+        'actionType': 'educational_tasks',
       });
     } catch (e) {
-      print('AppInterceptionService: Error showing educational blocking overlay: $e');
+      print(
+        'AppInterceptionService: Error showing educational blocking overlay: $e',
+      );
     }
   }
 
   /// Show time exceeded blocking overlay
-  static Future<void> _showTimeExceededBlockingOverlay(String appName, String timeLimit) async {
+  static Future<void> _showTimeExceededBlockingOverlay(
+    String appName,
+    String timeLimit,
+  ) async {
     const platform = MethodChannel('com.focuspass.app_blocker');
     try {
       await platform.invokeMethod('showTimeExceededBlockingOverlay', {
         'appName': appName,
         'title': '⏰ Daily Time Limit Reached',
-        'message': 'You\'ve reached your ${timeLimit}h daily limit for $appName.',
+        'message':
+            'You\'ve reached your ${timeLimit}h daily limit for $appName.',
         'actionText': 'Complete Tasks to Earn More Time',
-        'actionType': 'time_exceeded'
+        'actionType': 'time_exceeded',
       });
     } catch (e) {
-      print('AppInterceptionService: Error showing time exceeded blocking overlay: $e');
+      print(
+        'AppInterceptionService: Error showing time exceeded blocking overlay: $e',
+      );
     }
   }
 
@@ -259,9 +299,13 @@ class AppInterceptionService {
     const platform = MethodChannel('com.focuspass.app_launcher');
     try {
       await platform.invokeMethod('bringToForeground');
-      print('AppInterceptionService: Attempted to bring FocusPass to foreground');
+      print(
+        'AppInterceptionService: Attempted to bring FocusPass to foreground',
+      );
     } catch (e) {
-      print('AppInterceptionService: Error bringing FocusPass to foreground: $e');
+      print(
+        'AppInterceptionService: Error bringing FocusPass to foreground: $e',
+      );
     }
   }
 
@@ -292,18 +336,23 @@ class AppInterceptionService {
 
   /// Check if educational tasks were completed and update app access
   static Future<void> checkTaskCompletionAndUpdateAccess() async {
-    final childName = await _getCurrentChildName();
-    if (childName == null) return;
-    
-    final hasPendingTasks = await _taskService.hasPendingTasks(childName);
-    
+    final session = await _getCurrentSession();
+    if (session == null) return;
+
+    final hasPendingTasks = await _taskService.hasPendingTasks(
+      parentUid: session.parentUid,
+      childId: session.childId,
+    );
+
     if (!hasPendingTasks) {
       // All tasks completed, clear educational interceptions
       await clearAllInterceptions();
-      
+
       // Success notification is now handled in-app
-      
-      print('AppInterceptionService: All educational tasks completed, access granted');
+
+      print(
+        'AppInterceptionService: All educational tasks completed, access granted',
+      );
     }
   }
 
@@ -323,7 +372,7 @@ class AppInterceptionService {
       'com.discord': 'Discord',
       'com.android.chrome': 'Chrome', // Add Chrome support
     };
-    
+
     return knownApps[packageName];
   }
 
@@ -343,20 +392,24 @@ class AppInterceptionService {
       'Discord': 'com.discord',
       'Chrome': 'com.android.chrome',
     };
-    
+
     final packageName = reverseMap[appName] ?? appName;
-    
+
     if (_lastInterceptedApp == packageName) {
       _lastInterceptedApp = null;
       _lastInterceptionTime = null;
-      print('AppInterceptionService: Cleared cooldown for $appName ($packageName)');
+      print(
+        'AppInterceptionService: Cleared cooldown for $appName ($packageName)',
+      );
     }
   }
 
-  /// Get current child name
-  static Future<String?> _getCurrentChildName() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('current_child_name');
+  /// Resolves the currently active child session (parentUid + childId —
+  /// never display name). Tries the in-memory session first, then falls
+  /// back to restoring it from SharedPreferences.
+  static Future<ChildSession?> _getCurrentSession() async {
+    return ChildSessionService.currentSession ??
+        await ChildSessionService.restoreSession();
   }
 
   /// Load intercepted apps from preferences
