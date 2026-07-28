@@ -1,0 +1,143 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Helpers ----
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isParent(parentUid) {
+      return isSignedIn()
+        && request.auth.uid == parentUid
+        && request.auth.token.get('role', null) != 'child';
+    }
+
+    
+    function isChild(parentUid, childId) {
+      return isSignedIn()
+        && request.auth.token.get('role', null) == 'child'
+        && request.auth.token.get('parentUid', null) == parentUid
+        && request.auth.token.get('childId', null) == childId;
+    }
+
+
+    function isChildOfParent(parentUid) {
+      return isSignedIn()
+        && request.auth.token.get('role', null) == 'child'
+        && request.auth.token.get('parentUid', null) == parentUid;
+    }
+
+    function isParentOrChild(parentUid, childId) {
+      return isParent(parentUid) || isChild(parentUid, childId);
+    }
+
+    match /childAuthCredentials/{authUid} {
+      allow read, write: if false;
+    }
+    match /childLoginLookup/{lookupKey} {
+      allow read, write: if false;
+    }
+    match /childLoginAttempts/{lookupKey} {
+      allow read, write: if false;
+    }
+
+    // ---- Parent root document: users/{parentUid} ----
+    match /users/{parentUid} {
+      allow create: if isSignedIn()
+        && request.auth.uid == parentUid
+        && request.resource.data.role == 'parent';
+      allow update: if isParent(parentUid)
+        && request.resource.data.role == 'parent';
+
+      // No client ever deletes a parent's root document.
+    }
+
+    // ---- Child profile: users/{parentUid}/children/{childId} ----
+    match /users/{parentUid}/children/{childId} {
+      allow get: if isParentOrChild(parentUid, childId);
+
+      allow create: if false;
+
+      
+      allow update: if isParent(parentUid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'password'])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['password'])
+          || resource.data.get('authMigrated', false) != true
+        );
+
+      allow update: if isChild(parentUid, childId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'usesFamilyActivityPicker',
+          'familyActivityAppCount',
+          'familyActivityCategoryCount',
+          'selectedApps',
+          'ageRange',
+          'taskCategories',
+          'onboardingComplete',
+          'appLimits',
+          'lastParentalOverride'
+        ]);
+
+      match /screenTimeUsage/{dateKey} {
+        allow get, list: if isParentOrChild(parentUid, childId);
+        allow create, update: if isChild(parentUid, childId);
+      }
+      match /educationalActivity/{entryId} {
+        allow get, list: if isParentOrChild(parentUid, childId);
+        allow create: if isChild(parentUid, childId);
+      }
+      match /screenTimeSessions/{sessionId} {
+        allow get, list: if isParentOrChild(parentUid, childId);
+        allow create: if isChild(parentUid, childId);
+      }
+    }
+
+    match /users/{parentUid}/settings/{settingsId} {
+      allow get, list: if isParent(parentUid) || isChildOfParent(parentUid);
+      allow create, update: if isParent(parentUid);
+    }
+
+    match /users/{parentUid}/weeklyReports/{reportId} {
+      allow get, list: if isParent(parentUid);
+      allow create: if isParent(parentUid);
+    }
+
+
+    match /productive_tasks/{taskId} {
+      allow get, list: if isParentOrChild(resource.data.parentUid, resource.data.childId);
+
+      
+      allow create: if isChild(request.resource.data.parentUid, request.resource.data.childId)
+        && request.resource.data.status == 'pending';
+
+      allow update: if isParent(resource.data.parentUid)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'awardedMinutes', 'resolvedAt']);
+
+      // No client ever deletes a productive task.
+    }
+
+    match /educational_tasks/{taskId} {
+      
+      allow get, list: if isChild(resource.data.parentUid, resource.data.childId);
+
+      allow create: if isChild(request.resource.data.parentUid, request.resource.data.childId);
+
+      allow update: if isChild(resource.data.parentUid, resource.data.childId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['isCompleted', 'completedAt', 'questionAnswers']);
+
+      allow delete: if isChild(resource.data.parentUid, resource.data.childId);
+    }
+
+    match /used_questions/{docId} {
+      allow get: if resource == null || isChild(resource.data.parentUid, resource.data.childId);
+      allow create, update: if isChild(request.resource.data.parentUid, request.resource.data.childId);
+      allow delete: if isChild(resource.data.parentUid, resource.data.childId);
+    }
+  }
+}
