@@ -251,9 +251,9 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
 
                   _buildTierFilter(),
                   const SizedBox(height: 16),
-                  _buildPresetList(),
-                  const SizedBox(height: 12),
                   _buildCustomButton(),
+                  const SizedBox(height: 12),
+                  _buildPresetList(),
 
                   if (!_tasksLoading && _todaySubmissions.isNotEmpty) ...[
                     const SizedBox(height: 24),

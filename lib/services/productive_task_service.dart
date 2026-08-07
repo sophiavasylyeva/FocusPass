@@ -60,6 +60,36 @@ class ProductiveTaskService {
     }
   }
 
+  Future<List<ProductiveTask>> getAssignedTasksForChild(String childName) async {
+    try {
+      final snapshot = await _firestore
+          .collection(_collection)
+          .where('childName', isEqualTo: childName)
+          .where('status', isEqualTo: 'assigned')
+          .get();
+      final tasks = snapshot.docs
+          .map((doc) => ProductiveTask.fromMap(doc.id, doc.data()))
+          .toList();
+      tasks.sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+      return tasks;
+    } catch (e) {
+      print('❌ Error fetching assigned tasks for child: $e');
+      return [];
+    }
+  }
+
+  Future<void> markAssignedTaskDone(String taskId) async {
+    try {
+      await _firestore.collection(_collection).doc(taskId).update({
+        'status': 'pending',
+        'submittedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('❌ Error marking assigned task done: $e');
+      rethrow;
+    }
+  }
+
   Future<void> approveTask(
     String taskId,
     String childName,
@@ -71,8 +101,10 @@ class ProductiveTaskService {
         'awardedMinutes': awardedMinutes,
         'resolvedAt': FieldValue.serverTimestamp(),
       });
-      await UnifiedScreenTimeService.setCurrentChildName(childName);
-      await UnifiedScreenTimeService.addEarnedTime(awardedMinutes.toDouble());
+      // The child's device applies its own screen time shield when it picks
+      // up this status change via its Firestore listener (child_dashboard_screen.dart) —
+      // ManagedSettingsStore/DeviceActivity restrictions are local per-device,
+      // so there's nothing to update on the parent's device here.
     } catch (e) {
       print('❌ Error approving task: $e');
       rethrow;

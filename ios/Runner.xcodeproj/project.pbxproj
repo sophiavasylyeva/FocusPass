@@ -10,20 +10,20 @@
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
-		F2A6A1382FFBF8F4007A4BB8 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F2A6A1372FFBF8F4007A4BB7 /* GoogleService-Info.plist */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		84CE2F0083A0CA2AA0EE8760 /* ScreenTimeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEC5AF9C2575A06012253B93 /* ScreenTimeHandler.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
-		A51CDB898F99032E47809A0E /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 859E90D71F0C971E4B66B643 /* Pods_RunnerTests.framework */; };
-		DE0370ADC0F5BCD6E195203D /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CF2369D24F42B4D46B52A674 /* Pods_Runner.framework */; };
-		FC8B6BC5491318905134CA55 /* ScreenTimeMethodChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42291D6BF56D2E95EADC27BF /* ScreenTimeMethodChannel.swift */; };
 		A1B2C3D4E5F6A7B8C9D0E1F3 /* ActivityPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* ActivityPickerView.swift */; };
+		A51CDB898F99032E47809A0E /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 859E90D71F0C971E4B66B643 /* Pods_RunnerTests.framework */; };
 		DA00DA00DA00DA00DA000006 /* FamilyActivityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00DA00DA00DA00DA000001 /* FamilyActivityStore.swift */; };
 		DA00DA00DA00DA00DA000007 /* FamilyActivityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00DA00DA00DA00DA000001 /* FamilyActivityStore.swift */; };
 		DA00DA00DA00DA00DA000008 /* DeviceActivityMonitorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00DA00DA00DA00DA000002 /* DeviceActivityMonitorExtension.swift */; };
 		DA00DA00DA00DA00DA000009 /* DeviceActivityExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DA00DA00DA00DA00DA000005 /* DeviceActivityExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		DE0370ADC0F5BCD6E195203D /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CF2369D24F42B4D46B52A674 /* Pods_Runner.framework */; };
+		F2A6A1382FFBF8F4007A4BB8 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F2A6A1372FFBF8F4007A4BB7 /* GoogleService-Info.plist */; };
+		FC8B6BC5491318905134CA55 /* ScreenTimeMethodChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42291D6BF56D2E95EADC27BF /* ScreenTimeMethodChannel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -87,19 +87,19 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A7B8C9D0E1F2 /* ActivityPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityPickerView.swift; sourceTree = "<group>"; };
 		AEA670FFF30CFC4D72B5D317 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
 		BEC5AF9C2575A06012253B93 /* ScreenTimeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeHandler.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6A7B8C9D0E1F2 /* ActivityPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityPickerView.swift; sourceTree = "<group>"; };
 		C14C61CC390D586A37E3BD8F /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		CF2369D24F42B4D46B52A674 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		DA310C3096AF61D3A40EFB0D /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
-		E533EF7192E1C62054AF88CD /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
-		F2A6A1372FFBF8F4007A4BB7 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		DA00DA00DA00DA00DA000001 /* FamilyActivityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyActivityStore.swift; sourceTree = "<group>"; };
 		DA00DA00DA00DA00DA000002 /* DeviceActivityMonitorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceActivityMonitorExtension.swift; sourceTree = "<group>"; };
 		DA00DA00DA00DA00DA000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		DA00DA00DA00DA00DA000004 /* DeviceActivityExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DeviceActivityExtension.entitlements; sourceTree = "<group>"; };
 		DA00DA00DA00DA00DA000005 /* DeviceActivityExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DeviceActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA310C3096AF61D3A40EFB0D /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
+		E533EF7192E1C62054AF88CD /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
+		F2A6A1372FFBF8F4007A4BB7 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -111,18 +111,18 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		DA00DA00DA00DA00DA00000F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E4C37C2901620E795F3E87A7 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				A51CDB898F99032E47809A0E /* Pods_RunnerTests.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		DA00DA00DA00DA00DA00000F /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -191,16 +191,6 @@
 			path = Runner;
 			sourceTree = "<group>";
 		};
-		DA00DA00DA00DA00DA000014 /* DeviceActivityExtension */ = {
-			isa = PBXGroup;
-			children = (
-				DA00DA00DA00DA00DA000002 /* DeviceActivityMonitorExtension.swift */,
-				DA00DA00DA00DA00DA000003 /* Info.plist */,
-				DA00DA00DA00DA00DA000004 /* DeviceActivityExtension.entitlements */,
-			);
-			path = DeviceActivityExtension;
-			sourceTree = "<group>";
-		};
 		B8625AA90D694086A0DE5238 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
@@ -221,6 +211,16 @@
 				859E90D71F0C971E4B66B643 /* Pods_RunnerTests.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		DA00DA00DA00DA00DA000014 /* DeviceActivityExtension */ = {
+			isa = PBXGroup;
+			children = (
+				DA00DA00DA00DA00DA000002 /* DeviceActivityMonitorExtension.swift */,
+				DA00DA00DA00DA00DA000003 /* Info.plist */,
+				DA00DA00DA00DA00DA000004 /* DeviceActivityExtension.entitlements */,
+			);
+			path = DeviceActivityExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -596,13 +596,14 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 5H5368V3G5;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.focuspass;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sophia.focuspass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -778,13 +779,14 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 5H5368V3G5;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.focuspass;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sophia.focuspass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -800,13 +802,14 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 5H5368V3G5;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.focuspass;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sophia.focuspass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -821,6 +824,7 @@
 				CODE_SIGN_ENTITLEMENTS = DeviceActivityExtension/DeviceActivityExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 5H5368V3G5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = DeviceActivityExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -830,7 +834,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.focuspass.DeviceActivityExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sophia.focuspass.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -847,6 +851,7 @@
 				CODE_SIGN_ENTITLEMENTS = DeviceActivityExtension/DeviceActivityExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 5H5368V3G5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = DeviceActivityExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -856,7 +861,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.focuspass.DeviceActivityExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sophia.focuspass.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
@@ -871,6 +876,7 @@
 				CODE_SIGN_ENTITLEMENTS = DeviceActivityExtension/DeviceActivityExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 5H5368V3G5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = DeviceActivityExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -880,7 +886,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.focuspass.DeviceActivityExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sophia.focuspass.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;

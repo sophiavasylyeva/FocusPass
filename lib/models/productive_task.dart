@@ -204,7 +204,8 @@ class ProductiveTask {
   final int? awardedMinutes;
   final bool isCustom;
   final String? note;
-  final String status; // 'pending' | 'approved' | 'rejected'
+  final String status; // 'assigned' | 'pending' | 'approved' | 'rejected'
+  final bool assignedByParent;
   final DateTime submittedAt;
   final DateTime? resolvedAt;
 
@@ -222,6 +223,7 @@ class ProductiveTask {
     required this.isCustom,
     this.note,
     required this.status,
+    this.assignedByParent = false,
     required this.submittedAt,
     this.resolvedAt,
   });
@@ -244,6 +246,7 @@ class ProductiveTask {
       isCustom: map['isCustom'] ?? false,
       note: map['note'],
       status: map['status'] ?? 'pending',
+      assignedByParent: map['assignedByParent'] ?? false,
       submittedAt:
           (map['submittedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       resolvedAt: (map['resolvedAt'] as Timestamp?)?.toDate(),
@@ -264,6 +267,7 @@ class ProductiveTask {
       'isCustom': isCustom,
       if (note != null && note!.isNotEmpty) 'note': note,
       'status': status,
+      'assignedByParent': assignedByParent,
       'submittedAt': FieldValue.serverTimestamp(),
       if (resolvedAt != null) 'resolvedAt': resolvedAt,
     };

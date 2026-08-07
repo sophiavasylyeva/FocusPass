@@ -31,7 +31,15 @@
       "Bash(awk '/PBXResourcesBuildPhase/,/^\\\\t\\\\t\\\\\\);$/' ios/Runner.xcodeproj/project.pbxproj)",
       "Bash(awk *)",
       "Bash(plutil *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git push *)",
+      "Bash(gh auth *)",
+      "Bash(git config *)",
+      "Bash(git credential-osxkeychain *)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(security find-internet-password *)",
+      "Bash(git fetch *)",
+      "Bash(flutter --version)"
     ],
     "deny": [],
     "ask": []
