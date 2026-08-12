@@ -227,7 +227,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAccentGreen,
+      backgroundColor: const Color(0xFF1A7B1E),
       body: SafeArea(
         child: Container(
           height: MediaQuery.of(context).size.height,
@@ -241,19 +241,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    'FocusPass',
-                    style: TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 40),
                   Image.asset(
                     'assets/images/logo.png',
-                    width: 150,
-                    height: 150,
+                    width: double.infinity,
                     fit: BoxFit.contain,
                   ),
                 ],
